@@ -1,12 +1,32 @@
-# React + Vite
+# 🎉 Cumple-Toneti
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Una web interactiva creada para celebrar mi cumpleaños 🎂 con juegos, pistas y galería de fotos.  
+Los invitados podrán confirmar su asistencia, desbloquear pistas y acceder a la galería del evento.  
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Funcionalidades
 
-## Expanding the ESLint configuration
+- ✅ Confirmación de asistencia sin necesidad de correo electrónico  
+- 🔑 Acceso a pistas interactivas a medida que se desbloquean  
+- 📸 Galería de fotos del evento con código QR  
+- 🎨 Interfaz responsive y adaptada a móviles  
+- 🌐 Despliegue en **GitHub Pages**
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🛠️ Tecnologías
+
+- [React](https://react.dev/) + [Vite](https://vitejs.dev/)  
+- [TailwindCSS](https://tailwindcss.com/) para los estilos  
+- [gh-pages](https://www.npmjs.com/package/gh-pages) para el despliegue  
+
+---
+
+## 📦 Instalación
+
+Clona el repositorio:
+
+```bash
+git clone https://github.com/toneti85/cumple-toneti.git
+cd cumple-toneti
