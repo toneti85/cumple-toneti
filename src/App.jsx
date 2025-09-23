@@ -415,7 +415,7 @@ export default function App() {
         {/* Pistas + Quiz con validación por usuario */}
         <section className="mt-8 sm:mt-10">
           <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
-            Pistas semanales
+            Pistas semanales para adivinar la sorpresa!
           </h2>
           
           <RiddlesQuiz
