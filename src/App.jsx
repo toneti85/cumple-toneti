@@ -417,14 +417,7 @@ export default function App() {
           <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
             Pistas semanales
           </h2>
-
-          {!user && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400 mb-4">
-              🔒 Confirma asistencia con tu nombre y email para desbloquear y
-              participar en el juego.
-            </div>
-          )}
-
+          
           <RiddlesQuiz
             clues={revealed}
             enabled={!!user}
@@ -579,16 +572,6 @@ function RsvpCard({ user, onLogin, onLogout, externalUrl }) {
         <p className="text-emerald-300 text-sm">
           ✅ Asistencia confirmada para <b>{user.name}</b> · {user.email}
         </p>
-        <div className="mt-3 flex gap-2">
-          <a
-            href={externalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center rounded-xl px-3 py-2 bg-white text-black text-sm"
-          >
-            Editar/añadir detalles en formulario externo
-          </a>
-        </div>
       </div>
     );
   }
@@ -625,7 +608,6 @@ function RsvpCard({ user, onLogin, onLogout, externalUrl }) {
           rel="noreferrer"
           className="inline-flex items-center rounded-xl px-3 py-2 bg-zinc-800 text-zinc-100 text-sm"
         >
-          Formularío externo (alternativo)
         </a>
       </div>
     </div>
