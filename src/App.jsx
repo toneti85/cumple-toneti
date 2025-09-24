@@ -26,8 +26,8 @@ const CLUES_DEFAULT = [
   {
     title: "Pista #1",
     body:
-      "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado y menudas fiestas!!! Hasta una traca de 50 metros se tiró dentro.... ¿qué nombre tenía nuestra primera colla amiga?",
-    revealAt: "2025-09-24T09:00:00+02:00",
+      "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado y menudas fiestas!!! Hasta una traca de 50 metros se tiró dentro.... ¿qué nombre tenía nuestra primera colla?",
+    revealAt: "2025-10-01T09:00:00+02:00",
     emoji: "🕵️‍♂️",
   },
   {
@@ -274,40 +274,31 @@ function sanitize(str = "") {
    =================== */
 const ANSWERS = {
   1: (ans) => sanitize(ans) === "perjudik2",
-  2: (ans) => ["estiercocolla", "botellodromo"].includes(sanitize(ans)),
+  2: (ans) => ["botellón"].includes(sanitize(ans)),
   3: (ans) => {
-    const s = sanitize(ans);
-    return s === "musica" || s === "la musica";
-  },
-  // genérico; no aceptar nombres propios (p.ej., zeppelin)
-  4: (ans) => {
     const s = sanitize(ans);
     if (!s) return false;
     if (s.includes("zeppelin")) return false;
     const ok =
-      (s.includes("sala") &&
-        (s.includes("conciert") || s.includes("musical"))) ||
-      s.includes("templo musical") ||
-      s.includes("templo de la musica") ||
-      s.includes("antigua sala") ||
-      s.includes("sitio de conciertos") ||
-      s.includes("sala mitica");
+      (s.includes("sala") ||
+        (s.includes("conciert") || 
+        s.includes("musica"))) ||
+        s.includes("disco");
     return ok;
   },
-  5: (ans) => sanitize(ans) === "futbolin",
-  6: (ans) => ["batcolla", "la batcolla"].includes(sanitize(ans)),
-  7: (ans) => sanitize(ans) === "zeppelin",
+  4: (ans) => sanitize(ans) === "futbolin",
+  5: (ans) => ["batcolla", "la batcolla"].includes(sanitize(ans)),
+  6: (ans) => sanitize(ans) === "zeppelin",
 };
 
 /* Respuestas “oficiales” para auto-desbloqueo/mostrar solución */
 const ANSWER_PAYLOAD = {
   1: { type: "text", content: "Perjudik2" },
-  2: { type: "text", content: "Estiercocolla (también válido: Botellódromo)" },
-  3: { type: "text", content: "La música" },
-  4: { type: "text", content: "Una sala de conciertos (templo musical mítico)" },
-  5: { type: "text", content: "Futbolín" },
-  6: { type: "text", content: "La Batcolla" },
-  7: {
+  2: { type: "text", content: "Botellón" },
+  3: { type: "text", content: "Sala de música " },
+  4: { type: "text", content: "Futbolín" },
+  5: { type: "text", content: "La Batcolla" },
+  6: {
     type: "image",
     content:
       "https://scontent.fvlc5-1.fna.fbcdn.net/v/t39.30808-6/504143647_24244934781781281_8196324863052406172_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=oZi3sVyqDm0Q7kNvwGkisfa&_nc_oc=Adkn3XWbB3Kwn2d0S-E4WEBm5ydpq5CcFRnVPKSyhS9-yNUIlXgf_aNL2iduTSAwFww&_nc_zt=23&_nc_ht=scontent.fvlc5-1.fna&_nc_gid=LDOgVNYvwucf3BVA5IHPRg&oh=00_AfYqta6JMiRx3QW-tMlp_3oTqAEdLJNgS_c_WBEw7fAhPA&oe=68D8702D",
