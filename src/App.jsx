@@ -26,42 +26,35 @@ const CLUES_DEFAULT = [
   {
     title: "Pista #1",
     body:
-      "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado, guarros decían, ¿qué nombre tenía nuestra primera colla amiga?",
-    revealAt: "2025-10-01T09:00:00+02:00",
+      "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado y menudas fiestas!!! Hasta una traca de 50 metros se tiró dentro.... ¿qué nombre tenía nuestra primera colla amiga?",
+    revealAt: "2025-09-24T09:00:00+02:00",
     emoji: "🕵️‍♂️",
   },
   {
     title: "Pista #2",
     body:
-      "Fiestas salvajes, botellas a montón, tan guarros éramos que nos dieron un apodo. Ni compost ni huerto, más bien jolgorio y sudor, ¿cómo nos llamaron sin ningún pudor? El dress code tendrá un toque de los 90. Neón y vaqueros.",
-    revealAt: "2025-10-08T09:00:00+02:00",
-    emoji: "🕺",
-  },
-  {
-    title: "Pista #3",
-    body:
-      "De padres distintos y madres también, nos juntamos todos con algo en común. Entre pachanga y punk nos hicimos colegas, ¿qué era lo que a todos nos unía de veras?",
+      "De padres distintos y madres también, amigos de amigos y algunos hermanos, pero nos juntamos todos con algo en común. Entre pachanga y punk nos hicimos colegas, ¿qué era lo que a todos nos unía?",
     revealAt: "2025-10-08T09:00:00+02:00",
     emoji: "🎶",
   },
   {
-    title: "Pista #4",
+    title: "Pista #3",
     body:
-      "Del local al parque, tocó emigrar, hasta que un amigo trajo un rumor especial: ‘reabre un templo donde sonó rock de verdad’. ¿Qué tipo de lugar era… con pasado musical?",
+      "De la colla al parque, tocó emigrar, hasta que alguien trajo un rumor especial: ‘reabre un templo donde sonó rock de verdad’. ¿Qué tipo de lugar era…?",
     revealAt: "2025-10-15T09:00:00+02:00",
     emoji: "🏛️",
   },
   {
-    title: "Pista #5",
+    title: "Pista #4",
     body:
-      "Arriba unos, abajo otros, en el sótano reinaba una pelota pequeña. Entre tiradores y risas locas, ¿qué juego marcó aquella colla?",
+      "Arriba unos, abajo otros, cada uno en su espacio, pero en el nuestro además de la música había un sonido especial. Entre cubatas y risas locas, ¿qué juego marcó aquella colla hasta altas horas de la madrugada?",
     revealAt: "2025-10-22T09:00:00+02:00",
     emoji: "🏓",
   },
   {
-    title: "Pista #6",
+    title: "Pista #5",
     body:
-      "De l’Esvaró nos llegó más gente, y nació un antro de fiesta vehemente. Punkis, puzzle y hasta DJs legendarios, ¿cómo se llamó aquel clan temerario?",
+      "De l’Esvaró nos llegó más gente, y nació un antro de fiesta.... Punkis, el Gran Puzzle y hasta DJs legendarios, ¿cómo se llamábamos a aquella colla?",
     revealAt: "2025-10-29T09:00:00+02:00",
     emoji: "🧩",
   },
