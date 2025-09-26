@@ -9,14 +9,14 @@ import { useEffect, useMemo, useState } from "react";
    =================== */
 const EVENT_DEFAULT = {
   title: "¡40 Cumple de Toneti!",
-  date: "2024-11-15T12:30:00+01:00",
+  date: "2025-11-15T12:30:00+01:00",
   locationLabel: "Colla + ¿Qué nos habrá preparado nuestro querido Toneti....?",
   locationUrl: "https://maps.app.goo.gl/WW4huSdBFsvJZ4Yt7",
   rsvpUrl: "",
   coverImage:
     "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=1600&auto=format&fit=crop",
   hashtag: "#CumpleToni",
-  galleryOpensAt: "2024-11-16T10:00:00+01:00",
+  galleryOpensAt: "2025-11-16T10:00:00+01:00",
   spotifyPlaylistUrl:
     "https://open.spotify.com/playlist/1CQlLJ7J2tUP6YFIJb2sV7?si=5633f11317bf4b1d",
 };
@@ -26,42 +26,42 @@ const CLUES_DEFAULT = [
     title: "Pista #1",
     body:
       "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado y menudas fiestas!!! Hasta una traca de 50 metros se tiró dentro.... ¿qué nombre tenía nuestra primera colla?",
-    revealAt: "2024-10-01T09:00:00+02:00",
+    revealAt: "2025-10-01T09:00:00+02:00",
     emoji: "🕵️‍♂️",
   },
   {
     title: "Pista #2",
     body:
       "De padres distintos y madres también, amigos de amigos y algunos hermanos, pero nos juntamos todos con algo en común. Entre pachanga y punk nos hicimos colegas, ¿qué era lo que a todos nos unía?",
-    revealAt: "2024-10-08T09:00:00+02:00",
+    revealAt: "2025-10-08T09:00:00+02:00",
     emoji: "🎶",
   },
   {
     title: "Pista #3",
     body:
       "De la colla al parque, tocó emigrar, hasta que alguien trajo un rumor especial: ‘reabre un templo donde sonó rock de verdad’. ¿Qué tipo de lugar era…?",
-    revealAt: "2024-10-15T09:00:00+02:00",
+    revealAt: "2025-10-15T09:00:00+02:00",
     emoji: "🏛️",
   },
   {
     title: "Pista #4",
     body:
       "Arriba unos, abajo otros, cada uno en su espacio, pero en el nuestro además de la música había un sonido especial. Entre cubatas y risas locas, ¿qué juego marcó aquella colla hasta altas horas de la madrugada?",
-    revealAt: "2024-10-22T09:00:00+02:00",
+    revealAt: "2025-10-22T09:00:00+02:00",
     emoji: "🏓",
   },
   {
     title: "Pista #5",
     body:
       "De l’Esvaró nos llegó más gente, y nació un antro de fiesta.... Punkis, el Gran Puzzle y hasta DJs legendarios, ¿cómo se llamábamos a aquella colla?",
-    revealAt: "2024-10-29T09:00:00+02:00",
+    revealAt: "2025-10-29T09:00:00+02:00",
     emoji: "🧩",
   },
   {
     title: "Pista Final",
     body:
       "Crecimos, cambiamos y el mapa giró, pero hay un lugar que a todos nos juntó. Templo querido, latido inmortal… ¿Qué sitio habrá elegido nuestro querido Toneti para celebrar sus 40? :)",
-    revealAt: "2024-11-06T09:00:00+02:00",
+    revealAt: "2025-11-06T09:00:00+02:00",
     emoji: "🎯",
   },
 ];
