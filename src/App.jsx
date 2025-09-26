@@ -9,14 +9,14 @@ import { useEffect, useMemo, useState } from "react";
    =================== */
 const EVENT_DEFAULT = {
   title: "¡40 Cumple de Toneti!",
-  date: "2025-11-15T12:30:00+01:00",
+  date: "2024-11-15T12:30:00+01:00",
   locationLabel: "Colla + ¿Qué nos habrá preparado nuestro querido Toneti....?",
   locationUrl: "https://maps.app.goo.gl/WW4huSdBFsvJZ4Yt7",
   rsvpUrl: "",
   coverImage:
     "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=1600&auto=format&fit=crop",
   hashtag: "#CumpleToni",
-  galleryOpensAt: "2025-11-16T10:00:00+01:00",
+  galleryOpensAt: "2024-11-16T10:00:00+01:00",
   spotifyPlaylistUrl:
     "https://open.spotify.com/playlist/1CQlLJ7J2tUP6YFIJb2sV7?si=5633f11317bf4b1d",
 };
@@ -26,42 +26,42 @@ const CLUES_DEFAULT = [
     title: "Pista #1",
     body:
       "Éramos jóvenes, sin miedo ni ley, en la calle San Roque empezó todo aquello. Un local prestado y menudas fiestas!!! Hasta una traca de 50 metros se tiró dentro.... ¿qué nombre tenía nuestra primera colla?",
-    revealAt: "2025-10-01T09:00:00+02:00",
+    revealAt: "2024-10-01T09:00:00+02:00",
     emoji: "🕵️‍♂️",
   },
   {
     title: "Pista #2",
     body:
       "De padres distintos y madres también, amigos de amigos y algunos hermanos, pero nos juntamos todos con algo en común. Entre pachanga y punk nos hicimos colegas, ¿qué era lo que a todos nos unía?",
-    revealAt: "2025-10-08T09:00:00+02:00",
+    revealAt: "2024-10-08T09:00:00+02:00",
     emoji: "🎶",
   },
   {
     title: "Pista #3",
     body:
       "De la colla al parque, tocó emigrar, hasta que alguien trajo un rumor especial: ‘reabre un templo donde sonó rock de verdad’. ¿Qué tipo de lugar era…?",
-    revealAt: "2025-10-15T09:00:00+02:00",
+    revealAt: "2024-10-15T09:00:00+02:00",
     emoji: "🏛️",
   },
   {
     title: "Pista #4",
     body:
       "Arriba unos, abajo otros, cada uno en su espacio, pero en el nuestro además de la música había un sonido especial. Entre cubatas y risas locas, ¿qué juego marcó aquella colla hasta altas horas de la madrugada?",
-    revealAt: "2025-10-22T09:00:00+02:00",
+    revealAt: "2024-10-22T09:00:00+02:00",
     emoji: "🏓",
   },
   {
     title: "Pista #5",
     body:
       "De l’Esvaró nos llegó más gente, y nació un antro de fiesta.... Punkis, el Gran Puzzle y hasta DJs legendarios, ¿cómo se llamábamos a aquella colla?",
-    revealAt: "2025-10-29T09:00:00+02:00",
+    revealAt: "2024-10-29T09:00:00+02:00",
     emoji: "🧩",
   },
   {
     title: "Pista Final",
     body:
       "Crecimos, cambiamos y el mapa giró, pero hay un lugar que a todos nos juntó. Templo querido, latido inmortal… ¿Qué sitio habrá elegido nuestro querido Toneti para celebrar sus 40? :)",
-    revealAt: "2025-11-06T09:00:00+02:00",
+    revealAt: "2024-11-06T09:00:00+02:00",
     emoji: "🎯",
   },
 ];
@@ -71,12 +71,7 @@ const GALLERY_DEFAULT = [
     src:
       "https://images.unsplash.com/photo-1542353436-312f0b0923b1?q=80&w=1200&auto=format&fit=crop",
     alt: "Foto 1",
-  },
-  {
-    src:
-      "https://images.unsplash.com/photo-1541976590-713941681591?q=80&w=1200&auto=format&fit=crop",
-    alt: "Foto 2",
-  },
+  }
 ];
 
 const CONFIG_KEY = "cumple-toni-config-v1";
@@ -263,12 +258,12 @@ function safeLocalSet(key, value) {
   try {
     if (typeof window !== "undefined")
       window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+  } catch { }
 }
 function safeLocalRemove(key) {
   try {
     if (typeof window !== "undefined") window.localStorage.removeItem(key);
-  } catch {}
+  } catch { }
 }
 function triggerDownload(url, filename) {
   const a = document.createElement("a");
@@ -429,9 +424,20 @@ export default function App() {
                 <TimeCard label="Min" value={t.m} />
                 <TimeCard label="Seg" value={t.s} />
               </div>
-            ) : (
+            ) : now < new Date(eventDate.getTime() + 24 * 60 * 60 * 1000) ? (
               <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-600 text-emerald-300 text-center">
                 ¡Es hoy! 🚀
+              </div>
+            ) : (
+              <div className="p-3 sm:p-4 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-600 text-fuchsia-300 text-center">
+                <p className="font-semibold text-lg mb-3">
+                  Os espero a partir de las 17:00 de la tarde en...
+                </p>
+                <img
+                  src="https://scontent.fvlc5-1.fna.fbcdn.net/v/t39.30808-6/504143647_24244934781781281_8196324863052406172_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=6-jk2hytCS0Q7kNvwEaYuxO&_nc_oc=Adm1415Ca0IZ_UztI28KRUUyLOR71tcPN914_69SQ3buVABomYTQn3Q5fzIE1M8ZU-Y&_nc_zt=23&_nc_ht=scontent.fvlc5-1.fna&_nc_gid=ZZw5MvbeyJs_Ch21M-DUJw&oh=00_AfY4CxpClYP3ETNWwLmBp71IUZIu7IYhPORZFjk6WqREoQ&oe=68DC64AD"
+                  alt="Ubicación secreta"
+                  className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] object-contain"
+                />
               </div>
             )}
           </div>
@@ -492,7 +498,7 @@ export default function App() {
 
           {!isConfirmed ? (
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              Para desbloquear las pistas y descubrir la sorpresa preparada por Toneti introduce arriba tu nombre en “Confirmar” y las pistas se irán desbloqueando cuando llegue la fecha!! Hasta la pista final.... 
+              Para desbloquear las pistas y descubrir la sorpresa preparada por Toneti introduce arriba tu nombre en “Confirmar” y las pistas se irán desbloqueando cuando llegue la fecha!! Hasta la pista final....
             </div>
           ) : null}
 
@@ -686,7 +692,7 @@ function AddToCalendar({ title, dateIso, details, className = "" }) {
 /* RSVP por nombre + confirmación */
 function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
   const [name, setName] = useState(currentName || "");
-  const [meal, setMeal] = useState(false);
+  const [meal, setMeal] = useState(true);
   const [party, setParty] = useState(true);
   const [status, setStatus] = useState("");
 
