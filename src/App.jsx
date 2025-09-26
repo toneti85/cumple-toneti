@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 const EVENT_DEFAULT = {
   title: "¡40 Cumple de Toneti!",
   date: "2025-11-15T12:30:00+01:00",
-  locationLabel: "Colla + Sorpresa",
+  locationLabel: "Colla + ¿Qué nos habrá preparado Toneti?",
   locationUrl: "https://maps.app.goo.gl/WW4huSdBFsvJZ4Yt7",
   rsvpUrl: "",
   coverImage:
@@ -18,7 +18,7 @@ const EVENT_DEFAULT = {
   hashtag: "#CumpleToni",
   galleryOpensAt: "2025-11-16T10:00:00+01:00",
   spotifyPlaylistUrl:
-    "https://open.spotify.com/playlist/6ZWecI4EIljbX4Tt76Kp5Z?si=93a8afcbbe6745a7",
+    "https://open.spotify.com/playlist/1CQlLJ7J2tUP6YFIJb2sV7?si=5633f11317bf4b1d",
 };
 
 const CLUES_DEFAULT = [
@@ -263,12 +263,12 @@ function safeLocalSet(key, value) {
   try {
     if (typeof window !== "undefined")
       window.localStorage.setItem(key, JSON.stringify(value));
-  } catch { }
+  } catch {}
 }
 function safeLocalRemove(key) {
   try {
     if (typeof window !== "undefined") window.localStorage.removeItem(key);
-  } catch { }
+  } catch {}
 }
 function triggerDownload(url, filename) {
   const a = document.createElement("a");
@@ -413,8 +413,11 @@ export default function App() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
         <div className="w-full max-w-screen-md px-3 sm:px-4">
           <h1 className="text-2xl sm:text-3xl leading-tight font-semibold tracking-tight text-center">{eventCfg.title}</h1>
+
+          {/* fecha + ubicación (con parte en rojo si aplica) */}
           <p className="mt-2 text-center text-sm sm:text-base text-zinc-400">
-            {new Date(eventCfg.date).toLocaleString()} · {eventCfg.locationLabel}
+            {new Date(eventCfg.date).toLocaleString()} ·{" "}
+            <LocationLabel label={eventCfg.locationLabel} />
           </p>
 
           {/* Cuenta atrás */}
@@ -618,6 +621,22 @@ function TimeCard({ label, value }) {
       <div className="text-[11px] sm:text-xs text-zinc-400 mt-1">{label}</div>
     </div>
   );
+}
+
+/** Pinta el locationLabel y, si contiene el texto objetivo, lo resalta en rojo */
+function LocationLabel({ label }) {
+  const TARGET = "¿Qué nos habrá preparado Toneti?";
+  if (typeof label === "string" && label.includes(TARGET)) {
+    const [before, after] = label.split(TARGET);
+    return (
+      <>
+        {before}
+        <span className="text-red-600 font-semibold">{TARGET}</span>
+        {after}
+      </>
+    );
+  }
+  return <>{label}</>;
 }
 
 function miniSpotifyEmbed(url) {
