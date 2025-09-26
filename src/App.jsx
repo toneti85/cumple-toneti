@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 const EVENT_DEFAULT = {
   title: "¡40 Cumple de Toneti!",
   date: "2025-11-15T12:30:00+01:00",
-  locationLabel: "Colla + ¿Qué nos habrá preparado Toneti?",
+  locationLabel: "Colla + ¿Qué nos habrá preparado nuestro querido Toneti....?",
   locationUrl: "https://maps.app.goo.gl/WW4huSdBFsvJZ4Yt7",
   rsvpUrl: "",
   coverImage:
@@ -624,7 +624,7 @@ function TimeCard({ label, value }) {
 
 /** Pinta el locationLabel y, si contiene el texto objetivo, lo resalta en rojo */
 function LocationLabel({ label }) {
-  const TARGET = "¿Qué nos habrá preparado Toneti?";
+  const TARGET = "¿Qué nos habrá preparado nuestro querido Toneti....?";
   if (typeof label === "string" && label.includes(TARGET)) {
     const [before, after] = label.split(TARGET);
     return (
