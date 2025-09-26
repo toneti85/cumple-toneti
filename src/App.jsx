@@ -730,10 +730,10 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
         <button
           onClick={submit}
           className="px-4 py-2.5 rounded-xl text-sm font-semibold
-             bg-emerald-500 text-black
-             hover:bg-emerald-400 active:bg-emerald-500/90
-             border border-emerald-600/60 shadow-sm
-             ring-1 ring-emerald-400/40
+             bg-zinc-900 text-red-500
+             hover:bg-zinc-800 active:bg-zinc-950
+             border border-red-600/60 shadow-sm
+             ring-1 ring-red-400/40
              transition-colors"
           style={{ WebkitTapHighlightColor: "transparent" }}
           aria-label="Confirmar asistencia"
