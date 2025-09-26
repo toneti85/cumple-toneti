@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 /* =============================================================
-   CUMPLE TONI — Landing (RSVP + Quiz + Galería con QR)
-   Versión JS/JSX (sin TypeScript)
+   CUMPLE TONI — Landing (RSVP por nombre + Supabase + Admin)
    ============================================================= */
 
 /* ===================
@@ -13,7 +12,7 @@ const EVENT_DEFAULT = {
   date: "2025-11-15T12:30:00+01:00",
   locationLabel: "Colla + Sorpresa",
   locationUrl: "https://maps.app.goo.gl/WW4huSdBFsvJZ4Yt7",
-  rsvpUrl: "https://tally.so/r/xxxxxxxx",
+  rsvpUrl: "",
   coverImage:
     "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=1600&auto=format&fit=crop",
   hashtag: "#CumpleToni",
@@ -81,14 +80,111 @@ const GALLERY_DEFAULT = [
 ];
 
 const CONFIG_KEY = "cumple-toni-config-v1";
-/* Nuevas claves para usuario y progreso por usuario */
-const USER_KEY = "cumple-toni-user-v1"; // {name,email}
-const PROGRESS_KEY = "cumple-toni-progress-v2";
-// URL para subir fotos a la galería (QR)
-const GALLERY_UPLOAD_URL = "https://app.eventocam.com/galeria/K6qhGNwbCG7S/subir";
+const LOCAL_ATTENDEES_KEY = "cumple-toni-attendees-v1";
+const LOCAL_CURRENT_NAME = "cumple-toni-current-name";
+const GALLERY_UPLOAD_URL =
+  "https://app.eventocam.com/galeria/K6qhGNwbCG7S/subir";
 
 /* ===================
-   PERSISTENCIA LOCAL
+   SUPABASE (opcional)
+   =================== */
+const SUPABASE = {
+  url:
+    (typeof import !== "undefined" &&
+      typeof import.meta !== "undefined" &&
+      import.meta.env &&
+      import.meta.env.VITE_SUPABASE_URL) ||
+    "",
+  key:
+    (typeof import !== "undefined" &&
+      typeof import.meta !== "undefined" &&
+      import.meta.env &&
+      import.meta.env.VITE_SUPABASE_ANON_KEY) ||
+    "",
+};
+const hasSupa = Boolean(SUPABASE.url && SUPABASE.key);
+
+async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
+  if (!hasSupa) throw new Error("Supabase no configurado");
+  const res = await fetch(`${SUPABASE.url}${path}`, {
+    method,
+    headers: {
+      apikey: SUPABASE.key,
+      Authorization: `Bearer ${SUPABASE.key}`,
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Supabase error ${res.status}`);
+  return await res.json();
+}
+
+// REST: /rest/v1/attendees
+async function supaAddOrUpdateAttendee({ name, meal, party }) {
+  const existing = await supaSelectAttendee(name);
+  if (existing) {
+    await supaFetch(`/rest/v1/attendees?name=eq.${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: { meal: !!meal, party: !!party },
+      headers: { Prefer: "return=representation" },
+    });
+  } else {
+    await supaFetch(`/rest/v1/attendees`, {
+      method: "POST",
+      body: { name, meal: !!meal, party: !!party },
+      headers: { Prefer: "return=representation" },
+    });
+  }
+}
+async function supaSelectAttendee(name) {
+  const rows = await supaFetch(
+    `/rest/v1/attendees?select=name,meal,party&name=eq.${encodeURIComponent(
+      name
+    )}`
+  );
+  return rows?.[0] || null;
+}
+async function supaListAttendees() {
+  return await supaFetch(
+    `/rest/v1/attendees?select=name,meal,party,created_at&order=created_at.desc`
+  );
+}
+
+/* ===================
+   Fallback localStorage para asistentes
+   =================== */
+function localListAttendees() {
+  return safeLocalGet(LOCAL_ATTENDEES_KEY) ?? [];
+}
+function localGetAttendee(name) {
+  const list = localListAttendees();
+  return (
+    list.find(
+      (a) =>
+        a.name.toLowerCase() === String(name).trim().toLowerCase()
+    ) || null
+  );
+}
+function localAddOrUpdateAttendee({ name, meal, party }) {
+  const list = localListAttendees();
+  const idx = list.findIndex(
+    (a) => a.name.toLowerCase() === String(name).trim().toLowerCase()
+  );
+  if (idx >= 0) list[idx] = { ...list[idx], meal: !!meal, party: !!party };
+  else
+    list.push({
+      name: String(name).trim(),
+      meal: !!meal,
+      party: !!party,
+      created_at: new Date().toISOString(),
+    });
+  safeLocalSet(LOCAL_ATTENDEES_KEY, list);
+  return list;
+}
+
+/* ===================
+   PERSISTENCIA LOCAL UI
    =================== */
 function usePersistentConfig() {
   const [eventCfg, setEventCfg] = useState(
@@ -99,6 +195,9 @@ function usePersistentConfig() {
   );
   const [gallery, setGallery] = useState(
     () => safeLocalGet(CONFIG_KEY)?.gallery ?? GALLERY_DEFAULT
+  );
+  const [currentName, setCurrentName] = useState(
+    () => safeLocalGet(LOCAL_CURRENT_NAME) ?? ""
   );
 
   function save() {
@@ -135,6 +234,11 @@ function usePersistentConfig() {
     });
   }
 
+  function setAndPersistCurrentName(name) {
+    setCurrentName(name);
+    safeLocalSet(LOCAL_CURRENT_NAME, name);
+  }
+
   return {
     eventCfg,
     setEventCfg,
@@ -146,63 +250,9 @@ function usePersistentConfig() {
     reset,
     exportJson,
     importJson,
+    currentName,
+    setAndPersistCurrentName,
   };
-}
-
-/* ===================
-   USUARIO + PROGRESO POR EMAIL
-   =================== */
-function useUserProfile() {
-  const [user, setUser] = useState(() => safeLocalGet(USER_KEY));
-
-  function login(name, email) {
-    const clean = (s) => String(s || "").trim();
-    const u = { name: clean(name) || "Invitado", email: clean(email).toLowerCase() };
-    if (!u.email) return null;
-    safeLocalSet(USER_KEY, u);
-    setUser(u);
-    return u;
-  }
-  function logout() {
-    safeLocalRemove(USER_KEY);
-    setUser(null);
-  }
-
-  return { user, login, logout };
-}
-
-function useProgress(userEmail) {
-  const [map, setMap] = useState(() => safeLocalGet(PROGRESS_KEY) ?? {});
-  const userState = userEmail ? map[userEmail] ?? {} : {};
-  const progress = userState;
-
-  function write(nextUserState) {
-    if (!userEmail) return;
-    const nextMap = { ...map, [userEmail]: nextUserState };
-    setMap(nextMap);
-    safeLocalSet(PROGRESS_KEY, nextMap);
-  }
-
-  function incAttempt(id) {
-    if (!userEmail) return 0;
-    const cur = userState[id] ?? { solved: false, attempts: 0 };
-    const after = (cur.attempts ?? 0) + 1;
-    const next = { ...userState, [id]: { ...cur, attempts: after } };
-    write(next);
-    return after;
-  }
-
-  function markSolved(id, payload) {
-    if (!userEmail) return;
-    const cur = userState[id] ?? { solved: false, attempts: 0 };
-    const next = {
-      ...userState,
-      [id]: { ...cur, solved: true, payload: payload ?? ANSWER_PAYLOAD[id] },
-    };
-    write(next);
-  }
-
-  return { progress, incAttempt, markSolved };
 }
 
 /* ===================
@@ -236,7 +286,6 @@ function triggerDownload(url, filename) {
   a.click();
   a.remove();
 }
-
 function useNow(tickMs = 1000) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -258,8 +307,12 @@ function formatDiff(ms) {
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
 }
-function sanitize(str = "") {
-  return (str || "")
+
+/* ===================
+   VALIDADORES (si mantienes quiz por respuestas)
+   =================== */
+const sanitize = (str = "") =>
+  (str || "")
     .toString()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -267,11 +320,7 @@ function sanitize(str = "") {
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
 
-/* ===================
-   VALIDADORES DE RESPUESTA (1..7)
-   =================== */
 const ANSWERS = {
   1: (ans) => sanitize(ans) === "perjudik2",
   2: (ans) => ["botellón"].includes(sanitize(ans)),
@@ -280,10 +329,10 @@ const ANSWERS = {
     if (!s) return false;
     if (s.includes("zeppelin")) return false;
     const ok =
-      (s.includes("sala") ||
-        (s.includes("conciert") || 
-        s.includes("musica"))) ||
-        s.includes("disco");
+      s.includes("sala") ||
+      s.includes("conciert") ||
+      s.includes("musica") ||
+      s.includes("disco");
     return ok;
   },
   4: (ans) => sanitize(ans) === "futbolin",
@@ -291,7 +340,6 @@ const ANSWERS = {
   6: (ans) => sanitize(ans) === "zeppelin",
 };
 
-/* Respuestas “oficiales” para auto-desbloqueo/mostrar solución */
 const ANSWER_PAYLOAD = {
   1: { type: "text", content: "Perjudik2" },
   2: { type: "text", content: "Botellón" },
@@ -304,13 +352,6 @@ const ANSWER_PAYLOAD = {
       "https://scontent.fvlc5-1.fna.fbcdn.net/v/t39.30808-6/504143647_24244934781781281_8196324863052406172_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=oZi3sVyqDm0Q7kNvwGkisfa&_nc_oc=Adkn3XWbB3Kwn2d0S-E4WEBm5ydpq5CcFRnVPKSyhS9-yNUIlXgf_aNL2iduTSAwFww&_nc_zt=23&_nc_ht=scontent.fvlc5-1.fna&_nc_gid=LDOgVNYvwucf3BVA5IHPRg&oh=00_AfYqta6JMiRx3QW-tMlp_3oTqAEdLJNgS_c_WBEw7fAhPA&oe=68D8702D",
   },
 };
-
-/* ===== QR helper ===== */
-function buildQrUrl(data, size = 320) {
-  const encoded = encodeURIComponent(data);
-  // Servicio público para generar QR: puedes cambiarlo si prefieres otro
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&qzone=2&data=${encoded}`;
-}
 
 /* ===================
    APP
@@ -327,6 +368,8 @@ export default function App() {
     reset,
     exportJson,
     importJson,
+    currentName,
+    setAndPersistCurrentName,
   } = usePersistentConfig();
 
   const now = useNow(1000);
@@ -337,7 +380,6 @@ export default function App() {
     typeof window !== "undefined" ? window.location.search : ""
   );
   const isAdmin = params.get("admin") === "1";
-  const showTests = params.get("tests") === "1" || isAdmin;
 
   const revealed = useMemo(
     () => clues.map((c) => ({ ...c, revealed: now >= new Date(c.revealAt) })),
@@ -345,72 +387,139 @@ export default function App() {
   );
   const eventEnded = msLeft <= 0;
 
-  /* Usuario activo (RSVP in-app) + progreso */
-  const { user, login, logout } = useUserProfile();
+  // ¿el nombre actual está confirmado (comida o fiesta)?
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!currentName) {
+        setIsConfirmed(false);
+        return;
+      }
+      if (hasSupa) {
+        try {
+          const row = await supaSelectAttendee(currentName);
+          if (active) setIsConfirmed(!!row && (row.meal || row.party));
+        } catch {
+          if (active) setIsConfirmed(false);
+        }
+      } else {
+        const row = localGetAttendee(currentName);
+        setIsConfirmed(!!row && (row.meal || row.party));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [currentName]);
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
-      <header className="max-w-screen-2xl mx-auto px-3 sm:px-4 pt-8 sm:pt-10 pb-4 sm:pb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          {eventCfg.title}
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-400">
-          {new Date(eventCfg.date).toLocaleString()} · {eventCfg.locationLabel}
-        </p>
-      </header>
+      {/* HERO centrado */}
+      <section
+        className="relative min-h-dvh w-full flex items-center justify-center"
+        style={{ minHeight: "100svh" }}
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
+        <div className="w-full max-w-screen-md px-3 sm:px-4 pt-[env(safe-area-inset-top)]">
+          <h1 className="text-2xl sm:text-4xl font-semibold tracking-tight text-center">
+            {eventCfg.title}
+          </h1>
+          <p className="mt-2 text-center text-sm sm:text-base text-zinc-400">
+            {new Date(eventCfg.date).toLocaleString()} · {eventCfg.locationLabel}
+          </p>
 
-      <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
-        {/* Cuenta atrás */}
-        <section>
-          <h2 className="text-lg sm:text-xl font-medium mb-2">Cuenta atrás</h2>
-          {!eventEnded ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-              <TimeCard label="Días" value={t.d} />
-              <TimeCard label="Horas" value={t.h} />
-              <TimeCard label="Min" value={t.m} />
-              <TimeCard label="Seg" value={t.s} />
-            </div>
-          ) : (
-            <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-600 text-emerald-300">
-              ¡Es hoy! 🚀
-            </div>
-          )}
+          {/* Cuenta atrás */}
+          <div className="mt-6">
+            {!eventEnded ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <TimeCard label="Días" value={t.d} />
+                <TimeCard label="Horas" value={t.h} />
+                <TimeCard label="Min" value={t.m} />
+                <TimeCard label="Seg" value={t.s} />
+              </div>
+            ) : (
+              <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-600 text-emerald-300 text-center">
+                ¡Es hoy! 🚀
+              </div>
+            )}
+          </div>
 
-          {/* CTA: RSVP externo + Añadir Calendario */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* RSVP interno que gobierna el quiz */}
-            <div className="col-span-1 md:col-span-2">
-              <RsvpCard
-                user={user}
-                onLogin={(n, e) => login(n, e)}
-                onLogout={logout}
-                externalUrl={eventCfg.rsvpUrl}
-              />
-            </div>
+          {/* RSVP / Acceso por nombre */}
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <RSVPBox
+              currentName={currentName}
+              setCurrentName={setAndPersistCurrentName}
+              onConfirmedChange={setIsConfirmed}
+            />
+            <a
+              href={eventCfg.locationUrl}
+              className="inline-flex items-center justify-center rounded-2xl px-4 py-3 sm:py-3.5 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Ver ubicación
+            </a>
+          </div>
 
+          <div className="mt-3">
             <AddToCalendar
               title={eventCfg.title}
               dateIso={eventCfg.date}
               details={`Nos vemos en ${eventCfg.locationLabel}!`}
             />
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Pistas + Quiz con validación por usuario */}
-        <section className="mt-8 sm:mt-10">
+      {/* Contenido */}
+      <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
+        {/* Pistas */}
+        <section className="mt-10">
           <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
-            Pistas semanales para adivinar la sorpresa!
+            Pistas semanales
           </h2>
-          
-          <RiddlesQuiz
-            clues={revealed}
-            enabled={!!user}
-            email={user?.email ?? ""}
-          />
+
+          {!isConfirmed ? (
+            <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
+              Introduce tu nombre en “Confirmar” para desbloquear las pistas
+              cuando llegue la fecha.
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {revealed.map((c, idx) => (
+              <div
+                key={idx}
+                className={cx(
+                  "rounded-3xl border p-4 sm:p-5",
+                  c.revealed
+                    ? "border-emerald-700/60 bg-emerald-500/5"
+                    : "border-zinc-800 bg-zinc-900/40"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base sm:text-lg font-semibold">
+                    {c.title}
+                  </h3>
+                  <span className="text-xl sm:text-2xl">{c.emoji ?? "✨"}</span>
+                </div>
+                {c.revealed ? (
+                  isConfirmed ? (
+                    <p className="mt-2 text-zinc-200">{c.body}</p>
+                  ) : (
+                    <LockedClue revealAt={c.revealAt} now={now} />
+                  )
+                ) : (
+                  <LockedClue revealAt={c.revealAt} now={now} />
+                )}
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Playlist */}
-        <section className="mt-8 sm:mt-10">
+        <section className="mt-10">
           <h2 className="text-lg sm:text-xl font-medium mb-2">🎵 Playlist</h2>
           <div className="rounded-3xl overflow-hidden border border-zinc-800">
             <iframe
@@ -425,15 +534,16 @@ export default function App() {
         </section>
 
         {/* Galería */}
-        <section className="mt-8 sm:mt-10">
+        <section className="mt-10">
           <h2 className="text-lg sm:text-xl font-medium mb-2">📸 Galería</h2>
           {now < new Date(eventCfg.galleryOpensAt) ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
-              🔒 Disponible el {new Date(eventCfg.galleryOpensAt).toLocaleString()}
+              🔒 Disponible el{" "}
+              {new Date(eventCfg.galleryOpensAt).toLocaleString()}
             </div>
           ) : (
             <>
-              {/* Bloque QR para subir fotos */}
+              {/* QR subir fotos */}
               <div className="rounded-2xl border border-emerald-700/60 bg-emerald-500/5 p-4 mb-4">
                 <div className="flex flex-col md:flex-row items-center gap-4">
                   <img
@@ -443,7 +553,9 @@ export default function App() {
                     loading="lazy"
                   />
                   <div className="text-emerald-200">
-                    <p className="font-semibold">¡Sube tus fotos a la galería!</p>
+                    <p className="font-semibold">
+                      ¡Sube tus fotos a la galería!
+                    </p>
                     <p className="text-sm opacity-80 mt-1">
                       Escanea el QR con tu móvil o pulsa el botón:
                     </p>
@@ -459,7 +571,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Rejilla de fotos */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {gallery.map((g, i) => (
                   <img
@@ -476,7 +587,7 @@ export default function App() {
 
         {/* Admin */}
         {isAdmin && (
-          <section className="mt-8 sm:mt-10">
+          <section className="mt-10">
             <AdminPanel
               eventCfg={eventCfg}
               setEventCfg={setEventCfg}
@@ -489,11 +600,9 @@ export default function App() {
               onExport={exportJson}
               onImport={importJson}
             />
+            <AttendeesAdmin />
           </section>
         )}
-
-        {/* Tests */}
-        {showTests && <section className="mt-8 sm:mt-10">{/* <SelfTests /> */}</section>}
       </main>
 
       <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-10 text-center text-zinc-500 text-xs sm:text-sm">
@@ -522,7 +631,8 @@ function LockedClue({ revealAt, now }) {
   const { d, h, m } = formatDiff(diff);
   return (
     <div className="mt-2 text-zinc-400 text-sm">
-      🔒 Se desbloquea el {new Date(revealAt).toLocaleString()} · Faltan {d}d {h}h {m}m
+      🔒 Se desbloquea el {new Date(revealAt).toLocaleString()} · Faltan {d}d{" "}
+      {h}h {m}m
     </div>
   );
 }
@@ -545,313 +655,96 @@ function AddToCalendar({ title, dateIso, details }) {
   );
 }
 
-/* RSVP in-app */
-function RsvpCard({ user, onLogin, onLogout, externalUrl }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-
-  if (user) {
-    return (
-      <div className="rounded-2xl border border-emerald-800 bg-emerald-500/10 p-4">
-        <p className="text-emerald-300 text-sm">
-          ✅ Asistencia confirmada para <b>{user.name}</b> · {user.email}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <p className="text-sm text-zinc-300">
-        Confirma tu asistencia para desbloquear el juego de adivinanzas.
-      </p>
-      <div className="mt-3 grid sm:grid-cols-2 gap-2">
-        <input
-          className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-zinc-100"
-          placeholder="Nombre o apodo"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-zinc-100"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          onClick={() => onLogin(name, email)}
-          className="inline-flex items-center rounded-xl px-3 py-2 bg-white text-black text-sm"
-        >
-          Confirmar asistencia y jugar
-        </button>
-        <a
-          href={externalUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center rounded-xl px-3 py-2 bg-zinc-800 text-zinc-100 text-sm"
-        >
-        </a>
-      </div>
-    </div>
-  );
-}
-
-/* Quiz + validación por usuario + auto-desbloqueo a 3 intentos */
-function RiddlesQuiz({ clues, enabled, email }) {
-  const now = useNow(1000);
-  const { progress, incAttempt, markSolved } = useProgress(email);
-
-  const solvedCount = Object.values(progress).filter((x) => x?.solved).length;
-
-  return (
-    <div>
-      {/* resumen progreso */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm text-zinc-400">
-          Progreso: <b>{solvedCount}</b>/7
-        </div>
-        <div
-          className="h-2 w-48 rounded-full bg-zinc-800 overflow-hidden"
-          aria-hidden
-        >
-          <div
-            className="h-2 bg-emerald-500 transition-all"
-            style={{ width: `${(solvedCount / 7) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {clues.map((c, idx) => {
-          const id = idx + 1; // 1..7
-          const r = c;
-          const isRevealed = r.revealed;
-          const state = progress[id] ?? { solved: false, attempts: 0 };
-          const isSolved = !!state.solved;
-
-          return (
-            <div
-              key={idx}
-              className={cx(
-                "rounded-3xl border p-4 sm:p-5",
-                isRevealed
-                  ? "border-emerald-700/60 bg-emerald-500/5"
-                  : "border-zinc-800 bg-zinc-900/40"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-base sm:text-lg font-semibold">{r.title}</h3>
-                <span className="text-xl sm:text-2xl">{r.emoji ?? "✨"}</span>
-              </div>
-
-              {/* Bloqueos por fecha / RSVP */}
-              {!isRevealed && (
-                <div className="mt-2 text-zinc-400 text-sm">
-                  <LockedClue revealAt={r.revealAt} now={now} />
-                </div>
-              )}
-              {isRevealed && !enabled && (
-                <div className="mt-2 text-zinc-400 text-sm">
-                  🔒 Confirma asistencia para responder.
-                </div>
-              )}
-
-              {/* Enunciado */}
-              {isRevealed && <p className="mt-2 text-zinc-200">{r.body}</p>}
-
-              {/* Input de respuesta */}
-              {isRevealed && enabled && (
-                <RiddleAnswer
-                  id={id}
-                  state={state}
-                  onAttempt={() => incAttempt(id)}
-                  onSolved={(payload) => markSolved(id, payload)}
-                  requirePrev={
-                    id === 7 ? [1, 2, 3, 4, 5, 6].every((k) => progress[k]?.solved) : true
-                  }
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function RiddleAnswer({ id, state, onAttempt, onSolved, requirePrev }) {
-  const [val, setVal] = useState("");
-  const [msg, setMsg] = useState("");
-  const solved = !!state?.solved;
-  const attempts = state?.attempts ?? 0;
-  const payload = state?.payload; // {type, content}
+/* RSVP por nombre + confirmación */
+function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
+  const [name, setName] = useState(currentName || "");
+  const [meal, setMeal] = useState(false);
+  const [party, setParty] = useState(true);
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
-    if (solved) setMsg("✅ ¡Correcto!");
-  }, [solved]);
+    setName(currentName || "");
+  }, [currentName]);
 
-  function check() {
-    if (id === 7 && !requirePrev) {
-      setMsg("⛔ Primero resuelve las 6 anteriores.");
+  async function submit() {
+    const n = String(name).trim();
+    if (!n) {
+      setStatus("Pon tu nombre ✍️");
       return;
     }
-    if (solved) return;
-
-    const okFn = ANSWERS[id];
-    const ok = okFn ? okFn(val) : false;
-
-    if (ok) {
-      onSolved(ANSWER_PAYLOAD[id]);
-      setMsg("✅ ¡Correcto!");
-      return;
-    }
-
-    // fallo → incrementa intento
-    const after = onAttempt(); // devuelve intentos acumulados
-    const nextAttempts = typeof after === "number" ? after : attempts + 1;
-    setMsg("❌ Sigue intentando…");
-
-    // al 3er fallo, auto-desbloqueo con payload oficial
-    if (nextAttempts >= 3) {
-      onSolved(ANSWER_PAYLOAD[id]);
-      setMsg("✅ Desbloqueada automáticamente tras 3 intentos.");
+    setStatus("Guardando…");
+    try {
+      if (hasSupa) {
+        await supaAddOrUpdateAttendee({ name: n, meal, party });
+      } else {
+        localAddOrUpdateAttendee({ name: n, meal, party });
+      }
+      setCurrentName(n);
+      onConfirmedChange(true);
+      setStatus("¡Confirmado!");
+    } catch (e) {
+      setStatus("Error al guardar");
     }
   }
 
   return (
-    <div className="mt-3">
-      {/* Input + botón (bloqueados si solved) */}
-      <div className="flex gap-2">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
+      <label className="text-sm block mb-2">
+        Tu nombre
         <input
-          disabled={solved}
-          className={cx(
-            "flex-1 rounded-xl bg-zinc-900 border px-3 py-2 text-zinc-100",
-            solved ? "border-emerald-700/60" : "border-zinc-700"
-          )}
-          placeholder="Escribe tu respuesta"
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && check()}
+          className="mt-1 w-full rounded-xl bg-zinc-950 border border-zinc-700 px-3 py-2 text-zinc-100"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre y apellidos"
         />
+      </label>
+      <div className="flex items-center gap-4 text-sm">
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={meal}
+            onChange={(e) => setMeal(e.target.checked)}
+          />{" "}
+          Comida
+        </label>
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={party}
+            onChange={(e) => setParty(e.target.checked)}
+          />{" "}
+          Fiesta
+        </label>
+      </div>
+      <div className="mt-3 flex gap-2">
         <button
-          disabled={solved}
-          onClick={check}
-          className={cx(
-            "rounded-xl px-3 py-2 text-sm",
-            solved
-              ? "bg-emerald-600/20 text-emerald-300 cursor-default"
-              : "bg-white text-black"
-          )}
+          onClick={submit}
+          className="px-4 py-2 rounded-xl bg-white text-black font-medium"
         >
-          {solved ? "Resuelto" : "Comprobar"}
+          Confirmar
+        </button>
+        <button
+          onClick={() => {
+            setCurrentName(name);
+            onConfirmedChange(false);
+            setStatus("");
+          }}
+          className="px-4 py-2 rounded-xl bg-zinc-800"
+        >
+          Acceder con nombre
         </button>
       </div>
-
-      {/* Mensaje + pista especial para #4 */}
-      {msg && (
-        <div
-          className={cx(
-            "mt-2 text-sm",
-            msg.startsWith("✅") ? "text-emerald-300" : "text-red-400"
-          )}
-        >
-          {msg} {!solved && attempts > 0 && attempts < 3 ? `· Intentos: ${attempts}` : ""}
-        </div>
-      )}
-      {id === 4 && !solved && (
-        <details className="mt-2 text-sm text-zinc-400">
-          <summary className="cursor-pointer">💡 Pista</summary>
-          Responde de forma genérica (p. ej., “sala de conciertos”). Aquí no aceptamos el nombre propio.
-        </details>
-      )}
-
-      {/* Cuando esté resuelta (acierto o auto-unlock) mostramos la “respuesta oficial”
-          - texto para 1..6
-          - imagen para la #7 */}
-      {solved && payload && (
-        <div className="mt-3">
-          {payload.type === "text" ? (
-            <div className="text-sm text-emerald-300">
-              ✅ Respuesta: <b>{payload.content}</b>
-            </div>
-          ) : payload.type === "image" ? (
-            <div className="rounded-2xl overflow-hidden border border-emerald-700/60 bg-emerald-500/5">
-              <img
-                src={payload.content}
-                alt="Respuesta final"
-                className="w-full h-auto block"
-                loading="lazy"
-              />
-            </div>
-          ) : null}
-        </div>
-      )}
+      <div className="mt-2 text-xs text-zinc-400">
+        {status ||
+          (hasSupa
+            ? "Guardado en la nube (Supabase)"
+            : "Guardado en este navegador")}
+      </div>
     </div>
   );
 }
 
-/* ===================
-   ICS BUILDER
-   =================== */
-function buildICS({ title, dateIso, details = "" }) {
-  const dt = new Date(dateIso);
-  const pad = (n) => String(n).padStart(2, "0");
-  const toUTC = (d) =>
-    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(
-      d.getUTCDate()
-    )}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
-  const startUtc = toUTC(dt);
-  const endUtc = toUTC(new Date(dt.getTime() + 3 * 60 * 60 * 1000));
-  return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Cumple Toni//ES",
-    "BEGIN:VEVENT",
-    `UID:${cryptoRandom()}`,
-    `DTSTAMP:${startUtc}`,
-    `DTSTART:${startUtc}`,
-    `DTEND:${endUtc}`,
-    `SUMMARY:${escapeICS(title)}`,
-    `DESCRIPTION:${escapeICS(details)}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\n");
-}
-
-function cryptoRandom() {
-  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
-    const bytes = new Uint8Array(8);
-    window.crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  }
-  return Math.random().toString(16).slice(2);
-}
-function escapeICS(s) {
-  return String(s).replaceAll(/([,;])/g, "\\$1").replaceAll(/\n/g, "\\n");
-}
-
-/* Spotify embed */
-function normalizeSpotifyEmbed(url) {
-  try {
-    if (!url) return url;
-    let u = String(url).trim();
-    u = u.replace(/open\.spotify\.com\/intl-[a-z]{2}\//i, "open.spotify.com/");
-    if (/spotify\.link\//i.test(u)) return u;
-
-    const parsed = new URL(u);
-    const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
-    if (parts[0] !== "embed") parts.unshift("embed");
-    return `https://open.spotify.com/${parts.join("/")}${parsed.search}`;
-  } catch {
-    return url;
-  }
-}
-
-/* ===================
-   ADMIN (sin cambios funcionales de UI)
-   =================== */
+/* Admin: evento/pistas/galería + asistentes */
 function AdminPanel({
   eventCfg,
   setEventCfg,
@@ -936,7 +829,7 @@ function AdminPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-blue-800 bg-blue-500/10 p-4 text-blue-100">
+    <div className="rounded-2xl border border-blue-800 bg-blue-500/10 p-4 text-blue-100 mt-10">
       <p className="font-semibold text-blue-100">🛠️ Panel de administración</p>
 
       {/* Evento */}
@@ -948,7 +841,9 @@ function AdminPanel({
         />
 
         <label className="text-sm">
-          <span className="block text-blue-200/80 mb-1">Fecha/Hora (datetime-local)</span>
+          <span className="block text-blue-200/80 mb-1">
+            Fecha/Hora (datetime-local)
+          </span>
           <input
             type="datetime-local"
             value={localDateValue}
@@ -987,7 +882,9 @@ function AdminPanel({
           onChange={(v) => updateEvent("coverImage", v)}
         />
         <label className="text-sm">
-          <span className="block text-blue-200/80 mb-1">o Subir portada (archivo)</span>
+          <span className="block text-blue-200/80 mb-1">
+            o Subir portada (archivo)
+          </span>
           <input
             type="file"
             accept="image/*"
@@ -1005,7 +902,9 @@ function AdminPanel({
         />
 
         <label className="text-sm">
-          <span className="block text-blue-200/80 mb-1">Apertura galería (datetime-local)</span>
+          <span className="block text-blue-200/80 mb-1">
+            Apertura galería (datetime-local)
+          </span>
           <input
             type="datetime-local"
             value={toDatetimeLocalValue(eventCfg.galleryOpensAt)}
@@ -1020,126 +919,103 @@ function AdminPanel({
         </label>
       </div>
 
-      {/* Pistas */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between">
-          <p className="font-medium">Pistas</p>
-          <button
-            onClick={addClue}
-            className="text-sm px-3 py-1 rounded-lg bg-white text-black"
-          >
-            Añadir pista
-          </button>
-        </div>
-        <div className="mt-3 space-y-3">
-          {clues.map((c, idx) => (
-            <div key={idx} className="rounded-xl border border-blue-800/60 bg-blue-500/5 p-3">
-              <div className="grid sm:grid-cols-2 gap-2">
-                <TextInput
-                  label="Título"
-                  value={c.title}
-                  onChange={(v) => updateClue(idx, "title", v)}
-                />
-                <TextInput
-                  label="Emoji"
-                  value={c.emoji ?? ""}
-                  onChange={(v) => updateClue(idx, "emoji", v)}
-                />
-                <label className="text-sm">
-                  <span className="block text-blue-200/80 mb-1">Revelar en</span>
-                  <input
-                    type="datetime-local"
-                    value={toDatetimeLocalValue(c.revealAt)}
-                    onChange={(e) =>
-                      updateClue(idx, "revealAt", isoFromDatetimeLocal(e.target.value))
-                    }
-                    className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-zinc-100"
-                  />
-                </label>
-                <TextInput
-                  label="Texto"
-                  value={c.body}
-                  onChange={(v) => updateClue(idx, "body", v)}
-                />
-              </div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => removeClue(idx)}
-                  className="text-xs px-2 py-1 rounded bg-red-700"
-                >
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Galería */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between">
-          <p className="font-medium">Galería</p>
-          <div className="flex gap-2">
-            <button
-              onClick={addPhoto}
-              className="text-sm px-3 py-1 rounded-lg bg-white text-black"
-            >
-              Añadir foto (URL)
-            </button>
-            <label className="text-sm px-3 py-1 rounded-lg bg-white text-black cursor-pointer">
-              Subir foto
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={onGalleryUpload}
-              />
-            </label>
-          </div>
-        </div>
-        <div className="mt-3 space-y-3">
-          {gallery.map((g, idx) => (
-            <div key={idx} className="rounded-xl border border-blue-800/60 bg-blue-500/5 p-3">
-              <div className="grid sm:grid-cols-2 gap-2">
-                <TextInput
-                  label="URL imagen"
-                  value={g.src}
-                  onChange={(v) => updatePhoto(idx, "src", v)}
-                />
-                <TextInput
-                  label="Alt"
-                  value={g.alt ?? ""}
-                  onChange={(v) => updatePhoto(idx, "alt", v)}
-                />
-              </div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => removePhoto(idx)}
-                  className="text-xs px-2 py-1 rounded bg-red-700"
-                >
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Persistencia */}
       <div className="mt-6 flex flex-wrap gap-2">
-        <button onClick={onSave} className="px-3 py-2 rounded-lg bg-white text-black">
+        <button
+          onClick={onSave}
+          className="px-3 py-2 rounded-lg bg-white text-black"
+        >
           Guardar
         </button>
-        <button onClick={onReset} className="px-3 py-2 rounded-lg bg-zinc-800">
+        <button
+          onClick={onReset}
+          className="px-3 py-2 rounded-lg bg-zinc-800"
+        >
           Reiniciar a defecto
         </button>
-        <button onClick={onExport} className="px-3 py-2 rounded-lg bg-zinc-800">
+        <button
+          onClick={onExport}
+          className="px-3 py-2 rounded-lg bg-zinc-800"
+        >
           Exportar JSON
         </button>
         <label className="px-3 py-2 rounded-lg bg-zinc-800 cursor-pointer">
           Importar JSON
-          <input type="file" accept="application/json" className="hidden" onChange={importFromFile} />
+          <input
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={importFromFile}
+          />
         </label>
+      </div>
+    </div>
+  );
+}
+
+function AttendeesAdmin() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function refresh() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = hasSupa ? await supaListAttendees() : localListAttendees();
+      setRows(data || []);
+    } catch (e) {
+      setError("No se pudo obtener la lista");
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  return (
+    <div className="mt-6 rounded-2xl border border-fuchsia-800 bg-fuchsia-500/10 p-4">
+      <div className="flex items-center justify-between">
+        <p className="font-semibold">👥 Asistentes</p>
+        <button
+          onClick={refresh}
+          className="text-sm px-3 py-1 rounded-lg bg-white text-black"
+        >
+          Refrescar
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-300 mt-2">{error}</p>}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-zinc-300">
+            <tr>
+              <th className="py-1 pr-3">Nombre</th>
+              <th className="py-1 pr-3">Comida</th>
+              <th className="py-1 pr-3">Fiesta</th>
+              <th className="py-1 pr-3">Fecha</th>
+            </tr>
+          </thead>
+        <tbody>
+            {rows.length === 0 && !loading && (
+              <tr>
+                <td colSpan={4} className="py-2 text-zinc-400">
+                  Sin asistentes aún
+                </td>
+              </tr>
+            )}
+            {rows.map((r, i) => (
+              <tr key={i} className="border-t border-zinc-800">
+                <td className="py-1 pr-3">{r.name}</td>
+                <td className="py-1 pr-3">{r.meal ? "✅" : "—"}</td>
+                <td className="py-1 pr-3">{r.party ? "✅" : "—"}</td>
+                <td className="py-1 pr-3">
+                  {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -1159,7 +1035,65 @@ function TextInput({ label, value, onChange }) {
 }
 
 /* ===================
-   Helpers datetime-local ↔ ISO (sin libs)
+   ICS BUILDER (fix .join y escape)
+   =================== */
+function buildICS({ title, dateIso, details = "" }) {
+  const dt = new Date(dateIso);
+  const pad = (n) => String(n).padStart(2, "0");
+  const toUTC = (d) =>
+    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(
+      d.getUTCDate()
+    )}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+  const startUtc = toUTC(dt);
+  const endUtc = toUTC(new Date(dt.getTime() + 3 * 60 * 60 * 1000));
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Cumple Toni//ES",
+    "BEGIN:VEVENT",
+    `UID:${cryptoRandom()}`,
+    `DTSTAMP:${startUtc}`,
+    `DTSTART:${startUtc}`,
+    `DTEND:${endUtc}`,
+    `SUMMARY:${escapeICS(title)}`,
+    `DESCRIPTION:${escapeICS(details)}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\n"); // <-- FIX
+}
+function cryptoRandom() {
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(8);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return Math.random().toString(16).slice(2);
+}
+function escapeICS(s) {
+  return String(s)
+    .replaceAll(/([,;])/g, "\\$1")
+    .replaceAll(/\n/g, "\\n"); // <-- FIX
+}
+
+/* Spotify embed */
+function normalizeSpotifyEmbed(url) {
+  try {
+    if (!url) return url;
+    let u = String(url).trim();
+    u = u.replace(/open\.spotify\.com\/intl-[a-z]{2}\//i, "open.spotify.com/");
+    if (/spotify\.link\//i.test(u)) return u;
+
+    const parsed = new URL(u);
+    const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
+    if (parts[0] !== "embed") parts.unshift("embed");
+    return `https://open.spotify.com/${parts.join("/")}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+/* ===================
+   Helpers datetime-local ↔ ISO
    =================== */
 function toDatetimeLocalValue(iso) {
   if (!iso) return "";
@@ -1179,4 +1113,10 @@ function isoFromDatetimeLocal(localStr) {
   const [hh, mi] = time.split(":").map((n) => parseInt(n, 10));
   const dt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mi || 0, 0);
   return dt.toISOString();
+}
+
+/* ===== QR helper ===== */
+function buildQrUrl(data, size = 320) {
+  const encoded = encodeURIComponent(data);
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&qzone=2&data=${encoded}`;
 }
