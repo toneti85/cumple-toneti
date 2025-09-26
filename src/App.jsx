@@ -85,22 +85,14 @@ const LOCAL_CURRENT_NAME = "cumple-toni-current-name";
 const GALLERY_UPLOAD_URL =
   "https://app.eventocam.com/galeria/K6qhGNwbCG7S/subir";
 
-/* ===================
-   SUPABASE (opcional)
-   =================== */
+// ===================
+// SUPABASE (opcional)
+// ===================
+// Define estas dos variables en el build (Vite):
+//   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 const SUPABASE = {
-  url:
-    (typeof import !== "undefined" &&
-      typeof import.meta !== "undefined" &&
-      import.meta.env &&
-      import.meta.env.VITE_SUPABASE_URL) ||
-    "",
-  key:
-    (typeof import !== "undefined" &&
-      typeof import.meta !== "undefined" &&
-      import.meta.env &&
-      import.meta.env.VITE_SUPABASE_ANON_KEY) ||
-    "",
+  url: (import.meta?.env?.VITE_SUPABASE_URL) || "",
+  key: (import.meta?.env?.VITE_SUPABASE_ANON_KEY) || "",
 };
 const hasSupa = Boolean(SUPABASE.url && SUPABASE.key);
 
@@ -416,15 +408,10 @@ export default function App() {
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
       {/* HERO centrado */}
-      <section
-        className="relative min-h-dvh w-full flex items-center justify-center"
-        style={{ minHeight: "100svh" }}
-      >
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
-        <div className="w-full max-w-screen-md px-3 sm:px-4 pt-[env(safe-area-inset-top)]">
-          <h1 className="text-2xl sm:text-4xl font-semibold tracking-tight text-center">
-            {eventCfg.title}
-          </h1>
+<section className="relative w-full flex items-center justify-center py-6 sm:py-10">
+  <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
+  <div className="w-full max-w-screen-md px-3 sm:px-4">
+    <h1 className="text-2xl sm:text-3xl leading-tight font-semibold tracking-tight text-center">{eventCfg.title}</h1>
           <p className="mt-2 text-center text-sm sm:text-base text-zinc-400">
             {new Date(eventCfg.date).toLocaleString()} · {eventCfg.locationLabel}
           </p>
@@ -722,16 +709,6 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
           className="px-4 py-2 rounded-xl bg-white text-black font-medium"
         >
           Confirmar
-        </button>
-        <button
-          onClick={() => {
-            setCurrentName(name);
-            onConfirmedChange(false);
-            setStatus("");
-          }}
-          className="px-4 py-2 rounded-xl bg-zinc-800"
-        >
-          Acceder con nombre
         </button>
       </div>
       <div className="mt-2 text-xs text-zinc-400">
@@ -1041,9 +1018,7 @@ function buildICS({ title, dateIso, details = "" }) {
   const dt = new Date(dateIso);
   const pad = (n) => String(n).padStart(2, "0");
   const toUTC = (d) =>
-    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(
-      d.getUTCDate()
-    )}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
   const startUtc = toUTC(dt);
   const endUtc = toUTC(new Date(dt.getTime() + 3 * 60 * 60 * 1000));
   return [
@@ -1059,7 +1034,7 @@ function buildICS({ title, dateIso, details = "" }) {
     `DESCRIPTION:${escapeICS(details)}`,
     "END:VEVENT",
     "END:VCALENDAR",
-  ].join("\n"); // <-- FIX
+  ].join("\n"); // 👈 importantísimo
 }
 function cryptoRandom() {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
@@ -1070,9 +1045,10 @@ function cryptoRandom() {
   return Math.random().toString(16).slice(2);
 }
 function escapeICS(s) {
+  // Escapa comas y puntos y coma, y convierte saltos de línea a \n
   return String(s)
     .replaceAll(/([,;])/g, "\\$1")
-    .replaceAll(/\n/g, "\\n"); // <-- FIX
+    .replaceAll(/\n/g, "\\n");
 }
 
 /* Spotify embed */
