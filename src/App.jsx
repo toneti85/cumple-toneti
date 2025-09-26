@@ -492,8 +492,7 @@ export default function App() {
 
           {!isConfirmed ? (
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              Para desbloquear las pistas y descubrir donde será la fiesta, introduce tu nombre en “Confirmar” y las pistas se desbloquearán
-              cuando llegue la fecha.
+              Para desbloquear las pistas y descubrir la sorpresa preparada por Toneti introduce arriba tu nombre en “Confirmar” y las pistas se irán desbloqueando cuando llegue la fecha!! Hasta la pista final.... 
             </div>
           ) : null}
 
