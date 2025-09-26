@@ -263,12 +263,12 @@ function safeLocalSet(key, value) {
   try {
     if (typeof window !== "undefined")
       window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+  } catch { }
 }
 function safeLocalRemove(key) {
   try {
     if (typeof window !== "undefined") window.localStorage.removeItem(key);
-  } catch {}
+  } catch { }
 }
 function triggerDownload(url, filename) {
   const a = document.createElement("a");
@@ -407,11 +407,12 @@ export default function App() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
+
       {/* HERO centrado */}
-<section className="relative w-full flex items-center justify-center py-6 sm:py-10">
-  <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
-  <div className="w-full max-w-screen-md px-3 sm:px-4">
-    <h1 className="text-2xl sm:text-3xl leading-tight font-semibold tracking-tight text-center">{eventCfg.title}</h1>
+      <section className="relative w-full flex items-center justify-center py-6 sm:py-10">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
+        <div className="w-full max-w-screen-md px-3 sm:px-4">
+          <h1 className="text-2xl sm:text-3xl leading-tight font-semibold tracking-tight text-center">{eventCfg.title}</h1>
           <p className="mt-2 text-center text-sm sm:text-base text-zinc-400">
             {new Date(eventCfg.date).toLocaleString()} · {eventCfg.locationLabel}
           </p>
@@ -432,44 +433,63 @@ export default function App() {
             )}
           </div>
 
-          {/* RSVP / Acceso por nombre */}
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            {/* Izquierda: RSVP */}
             <RSVPBox
               currentName={currentName}
               setCurrentName={setAndPersistCurrentName}
               onConfirmedChange={setIsConfirmed}
             />
+
+            {/* Derecha: mini reproductor */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
+              <h3 className="text-sm text-zinc-300 mb-2">🎵 Playlist</h3>
+              <div className="rounded-xl overflow-hidden border border-zinc-800">
+                <iframe
+                  className="w-full"
+                  style={{ height: 152 }}
+                  src={miniSpotifyEmbed(eventCfg.spotifyPlaylistUrl)}
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  title="Spotify playlist"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Fila de CTA: .ics + ubicación con la misma altura */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <AddToCalendar
+              title={eventCfg.title}
+              dateIso={eventCfg.date}
+              details={`Nos vemos en ${eventCfg.locationLabel}!`}
+              className="h-12 sm:h-[52px] py-0"
+            />
             <a
               href={eventCfg.locationUrl}
-              className="inline-flex items-center justify-center rounded-2xl px-4 py-3 sm:py-3.5 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
               target="_blank"
               rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-2xl px-4 h-12 sm:h-[52px] bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full"
             >
               Ver ubicación
             </a>
           </div>
 
-          <div className="mt-3">
-            <AddToCalendar
-              title={eventCfg.title}
-              dateIso={eventCfg.date}
-              details={`Nos vemos en ${eventCfg.locationLabel}!`}
-            />
-          </div>
         </div>
       </section>
 
       {/* Contenido */}
       <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
         {/* Pistas */}
-        <section className="mt-10">
+        <section className="mt-6 sm:mt-8">
           <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
             Pistas semanales
           </h2>
 
           {!isConfirmed ? (
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              Introduce tu nombre en “Confirmar” para desbloquear las pistas
+              Para desbloquear las pistas y descubrir donde será la fiesta, introduce tu nombre en “Confirmar” y las pistas se desbloquearán
               cuando llegue la fecha.
             </div>
           ) : null}
@@ -505,20 +525,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Playlist */}
-        <section className="mt-10">
-          <h2 className="text-lg sm:text-xl font-medium mb-2">🎵 Playlist</h2>
-          <div className="rounded-3xl overflow-hidden border border-zinc-800">
-            <iframe
-              className="w-full h-64 md:h-80 lg:h-[352px]"
-              src={normalizeSpotifyEmbed(eventCfg.spotifyPlaylistUrl)}
-              width="100%"
-              height="352"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              loading="lazy"
-            />
-          </div>
-        </section>
+
 
         {/* Galería */}
         <section className="mt-10">
@@ -613,6 +620,22 @@ function TimeCard({ label, value }) {
   );
 }
 
+function miniSpotifyEmbed(url) {
+  try {
+    if (!url) return url;
+    let u = String(url).trim();
+    u = u.replace(/open\.spotify\.com\/intl-[a-z]{2}\//i, "open.spotify.com/");
+    const parsed = new URL(u);
+    const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
+    if (parts[0] !== "embed") parts.unshift("embed");
+    const search = new URLSearchParams(parsed.search);
+    search.set("theme", "0"); // oscuro
+    search.set("utm_source", "generator");
+    return `https://open.spotify.com/${parts.join("/")}?${search.toString()}`;
+  } catch { return url; }
+}
+
+
 function LockedClue({ revealAt, now }) {
   const diff = new Date(revealAt).getTime() - now.getTime();
   const { d, h, m } = formatDiff(diff);
@@ -624,23 +647,23 @@ function LockedClue({ revealAt, now }) {
   );
 }
 
-function AddToCalendar({ title, dateIso, details }) {
-  const ics = useMemo(() => buildICS({ title, dateIso, details }), [
-    title,
-    dateIso,
-    details,
-  ]);
+function AddToCalendar({ title, dateIso, details, className = "" }) {
+  const ics = useMemo(() => buildICS({ title, dateIso, details }), [title, dateIso, details]);
   const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(ics)}`;
   return (
     <a
       href={dataUrl}
       download="evento.ics"
-      className="inline-flex items-center justify-center rounded-2xl px-4 py-3 sm:py-3.5 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full"
+      className={
+        "inline-flex items-center justify-center rounded-2xl px-4 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full " +
+        className
+      }
     >
       Añadir al calendario (.ics)
     </a>
   );
 }
+
 
 /* RSVP por nombre + confirmación */
 function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
@@ -706,7 +729,14 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
       <div className="mt-3 flex gap-2">
         <button
           onClick={submit}
-          className="px-4 py-2 rounded-xl bg-white text-black font-medium"
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold
+             bg-emerald-500 text-black
+             hover:bg-emerald-400 active:bg-emerald-500/90
+             border border-emerald-600/60 shadow-sm
+             ring-1 ring-emerald-400/40
+             transition-colors"
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          aria-label="Confirmar asistencia"
         >
           Confirmar
         </button>
@@ -973,7 +1003,7 @@ function AttendeesAdmin() {
               <th className="py-1 pr-3">Fecha</th>
             </tr>
           </thead>
-        <tbody>
+          <tbody>
             {rows.length === 0 && !loading && (
               <tr>
                 <td colSpan={4} className="py-2 text-zinc-400">
