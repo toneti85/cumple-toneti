@@ -525,7 +525,8 @@ export default function App() {
 
           {!isConfirmed && !isAdmin ? (
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha. Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
+              ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha. 
+              Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
             </div>
           ) : null}
 
