@@ -542,6 +542,8 @@ export default function App() {
           )}
         </section>
 
+         <AttendeesAdmin />
+
         {/* Admin */}
         {isAdmin && (
           <section className="mt-10">
@@ -551,7 +553,6 @@ export default function App() {
               onSaved={reload}
             />
             <AdminPanelClues clues={clues} setClues={setClues} />
-            <AttendeesAdmin />
           </section>
         )}
       </main>
