@@ -525,8 +525,7 @@ export default function App() {
 
           {!isConfirmed && !isAdmin ? (
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              Para desbloquear las pistas y descubrir la pista final, donde se desvelará la sorpresa introduce arriba tu nombre, dale a “Confirmar” y las
-              pistas se irán desbloqueando cuando llegue la fecha. Al tercer intento fallido la pista se desbloquea sola ;)
+              ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha. Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
             </div>
           ) : null}
 
