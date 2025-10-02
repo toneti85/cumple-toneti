@@ -145,7 +145,7 @@ function normalizeSpotifyEmbed(url) {
 }
 
 /* ===================
-   ENDPOINTS ESPECÍFICOS (ajusta nombres de tabla/columnas si difieren)
+   ENDPOINTS ESPECÍFICOS (ajusta nombres si difieren)
    =================== */
 async function supaGetSettings() {
   const rows = await supaFetch(`rest/v1/settings?select=*&limit=1`);
@@ -328,8 +328,8 @@ export default function App() {
     <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
       <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur border-b border-zinc-800">
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2">
-          <a href="#/" className="font-bold text-red-500">🎉 Cumple</a>
-          <nav className="flex items-center gap-2 text-sm text-red-500">
+          <a href="#/" className="font-bold hover:text-red-400">🎉 Cumple</a>
+          <nav className="flex items-center gap-2 text-sm">
             <a href="#/" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Inicio</a>
             <a href="#/clasificacion" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Clasificación</a>
             <a href="#/confirmados" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Confirmados</a>
@@ -553,9 +553,9 @@ function HomePage() {
         )}
       </section>
 
-      {/* CTA hacia Confirmados (rojo) */}
+      {/* CTA hacia Confirmados */}
       <div className="mt-6">
-        <a href="#/confirmados" className="text-red-500 hover:text-red-400 underline">
+        <a href="#/confirmados" className="underline hover:text-red-400">
           Ver lista de confirmados →
         </a>
       </div>
@@ -572,21 +572,21 @@ function HomePage() {
 }
 
 /* ===================
-   PÁGINA: CLASIFICACIÓN (sin respuestas)
+   PÁGINA: CLASIFICACIÓN (ranking + respuestas filtradas)
    =================== */
 function LeaderboardPage() {
   return (
     <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
       <h1 className="text-2xl sm:text-3xl font-semibold">🏆 Clasificación</h1>
       <p className="text-sm text-zinc-400 mt-1">
-        Ranking por puntos (sin mostrar respuestas).{" "}
-        <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
+        Ranking por puntos.{" "}
+        <a href="#/" className="underline hover:text-red-400">Volver al inicio</a>
       </p>
       <LeaderboardSection />
       <div className="mt-6">
         <a
           href="#/"
-          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-red-500 hover:text-red-400"
+          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 hover:text-red-400"
         >
           ← Volver a la página principal
         </a>
@@ -604,13 +604,13 @@ function ConfirmedPage() {
       <h1 className="text-2xl sm:text-3xl font-semibold">👥 Confirmados</h1>
       <p className="text-sm text-zinc-400 mt-1">
         Lista actualizada de asistentes confirmados.{" "}
-        <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
+        <a href="#/" className="underline hover:text-red-400">Volver al inicio</a>
       </p>
       <AttendeesAdmin />
       <div className="mt-6">
         <a
           href="#/"
-          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-red-500 hover:text-red-400"
+          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 hover:text-red-400"
         >
           ← Volver a la página principal
         </a>
@@ -697,7 +697,7 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
       <div className="mt-3 flex gap-2">
         <button
           onClick={submit}
-          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 text-red-500 hover:text-red-400 hover:bg-zinc-800 active:bg-zinc-950 border border-red-600/60 shadow-sm ring-1 ring-red-400/40 transition-colors"
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 hover:text-red-400 hover:bg-zinc-800 active:bg-zinc-950 border border-red-600/60 shadow-sm ring-1 ring-red-400/40 transition-colors"
           aria-label="Confirmar asistencia"
         >
           Confirmar
@@ -1005,7 +1005,7 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
         <TextInput label="Ubicación (texto)" value={form.locationLabel} onChange={(v) => update("locationLabel", v)} />
         <TextInput label="URL ubicación" value={form.locationUrl} onChange={(v) => update("locationUrl", v)} />
         <TextInput label="URL imagen ubicación (estable)" value={form.locationImageUrl} onChange={(v) => update("locationImageUrl", v)} />
-        <TextInput label="Playlist Spotify" value={form.spotifyPlaylistUrl} onChange={(v) => update("spotifyPlaylistUrl", normalizeSpotifyEmbed(v))} />
+        <TextInput label="Playlist Spotify" value={form.spotifyPlaylistUrl} onChange={(v) => update("spotifyPlaylistUrl", v)} />
         <label className="text-sm">
           <span className="block text-blue-200/80 mb-1">Apertura galería</span>
           <input
@@ -1119,11 +1119,11 @@ function SecretBlock({ imageUrl }) {
 }
 
 /* ===================
-   CLASIFICACIÓN (ranking sin respuestas)
+   CLASIFICACIÓN (ranking + respuestas visibles filtradas)
    =================== */
 function LeaderboardSection() {
-  const [rows, setRows] = useState([]);      // intentos visibles (filtrados)
-  const [table, setTable] = useState([]);    // ranking
+  const [visibleAttempts, setVisibleAttempts] = useState([]); // intentos filtrados
+  const [table, setTable] = useState([]);                     // ranking
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const now = useNow(1000);
@@ -1135,110 +1135,149 @@ function LeaderboardSection() {
       if (!hasSupa) return setErr("Supabase no configurado ❌");
       setLoading(true); setErr("");
       try {
-        const [attempts, clues] = await Promise.all([
-          supaListAllAttempts(),
-          supaListClues(),
-        ]);
+        const [attempts, clues] = await Promise.all([supaListAllAttempts(), supaListClues()]);
         if (!active) return;
 
-        // filtro “pistas con siguiente revelada”
-        const ordered = (Array.isArray(clues) ? clues : [])
-          .slice()
+        // Ordenar pistas por fecha y numerarlas 1..N
+        const ordered = (clues || []).slice()
           .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
-
-        const nextMap = {};
+        const clueNum = new Map();          // id -> nº pista (1 basado)
+        const nextRevealed = new Map();     // id -> boolean (si la siguiente ya está revelada)
         ordered.forEach((c, i) => {
+          clueNum.set(c.id, i + 1);
           const next = ordered[i + 1];
-          if (!next) nextMap[c.id] = false;
-          else nextMap[c.id] = new Date(now) >= new Date(next.revealAt);
+          if (!next) nextRevealed.set(c.id, false); // la última nunca muestra sus respuestas
+          else nextRevealed.set(c.id, new Date(now) >= new Date(next.revealAt));
         });
 
-        const baseRows = Array.isArray(attempts) ? attempts : [];
-        const filtered = isAdmin ? baseRows : baseRows.filter(a => nextMap[a.clue_id] === true);
-        setRows(filtered);
-      } catch {
-        if (active) setErr("No se pudieron cargar intentos");
+        // Filtrar intentos que se pueden mostrar
+        const base = Array.isArray(attempts) ? attempts : [];
+        const filtered = isAdmin ? base : base.filter(a => nextRevealed.get(a.clue_id) === true);
+
+        // Guardar intentos visibles (con nº de pista)
+        const normalized = filtered.map(a => ({
+          ...a,
+          clue_number: clueNum.get(a.clue_id) ?? a.clue_id
+        }));
+        setVisibleAttempts(normalized);
+
+        // Calcular ranking SIEMPRE (usa los intentos visibles)
+        const byUser = new Map();
+        for (const a of normalized) {
+          const k = a.attendee || "¿Sin nombre?";
+          if (!byUser.has(k)) byUser.set(k, []);
+          byUser.get(k).push(a);
+        }
+        const rows = [...byUser.entries()].map(([user, atts]) => {
+          const byClue = new Map();
+          atts.forEach(x => {
+            if (!byClue.has(x.clue_id)) byClue.set(x.clue_id, []);
+            byClue.get(x.clue_id).push(x);
+          });
+          let solved = 0, fails = 0, last = 0;
+          byClue.forEach(list => {
+            const ok = list.some(x => x.is_correct);
+            if (ok) solved += 1;
+            fails += list.filter(x => !x.is_correct).length;
+            const lastTs = Math.max(...list.map(x => new Date(x.created_at).getTime()));
+            if (lastTs > last) last = lastTs;
+          });
+          const points = solved * 100 - fails;
+          return { user, points, solved, fails, last };
+        });
+        rows.sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.solved !== a.solved) return b.solved - a.solved;
+          return a.fails - b.fails;
+        });
+        setTable(rows);
+      } catch (e) {
+        if (active) setErr("No se pudieron cargar los datos");
       }
       setLoading(false);
     })();
     return () => { active = false; };
   }, [now, isAdmin]);
 
-  useEffect(() => {
-    // Agrupar por usuario y calcular puntos = aciertos*100 - fallos
-    const map = new Map();
-    for (const a of rows) {
-      const key = a.attendee || "¿Sin nombre?";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(a);
-    }
-    const scoreRows = [...map.entries()].map(([user, attempts]) => {
-      const byClue = new Map();
-      attempts.forEach(at => {
-        if (!byClue.has(at.clue_id)) byClue.set(at.clue_id, []);
-        byClue.get(at.clue_id).push(at);
-      });
-      let solved = 0, fails = 0, last = 0;
-      byClue.forEach(list => {
-        const anyCorrect = list.some(x => x.is_correct);
-        if (anyCorrect) solved += 1;
-        fails += list.filter(x => !x.is_correct).length;
-        const lastTs = Math.max(...list.map(x => new Date(x.created_at).getTime()));
-        if (lastTs > last) last = lastTs;
-      });
-      const points = solved * 100 - fails;
-      return { user, points, solved, fails, last };
-    });
-
-    scoreRows.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.solved !== a.solved) return b.solved - a.solved;
-      return a.fails - b.fails;
-    });
-    setTable(scoreRows);
-  }, [rows]);
-
   return (
-    <section className="mt-6">
-      {err && <p className="text-sm text-red-300 mb-3">{err}</p>}
-      {loading && <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">Cargando ranking…</div>}
-
-      {!loading && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-zinc-300">
-                <tr>
-                  <th className="py-1 pr-3">#</th>
-                  <th className="py-1 pr-3">Usuario</th>
-                  <th className="py-1 pr-3">Puntos</th>
-                  <th className="py-1 pr-3">Aciertos</th>
-                  <th className="py-1 pr-3">Fallos</th>
-                  <th className="py-1 pr-3">Última actividad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.length === 0 ? (
-                  <tr><td colSpan={6} className="py-2 text-zinc-400">Sin intentos todavía</td></tr>
-                ) : table.map((r, i) => (
-                  <tr key={r.user} className="border-t border-zinc-800">
-                    <td className="py-1 pr-3">{i + 1}</td>
-                    <td className="py-1 pr-3">{r.user}</td>
-                    <td className="py-1 pr-3 font-semibold">{r.points}</td>
-                    <td className="py-1 pr-3">{r.solved}</td>
-                    <td className="py-1 pr-3">{r.fails}</td>
-                    <td className="py-1 pr-3">{r.last ? fmt(r.last) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs mt-2 text-zinc-500">
-            Fórmula: <span className="font-mono">puntos = aciertos × 100 − fallos</span>.
-            Solo cuenta un acierto por pista. Los fallos restan 1 cada uno.
-          </p>
+    <section className="mt-6 space-y-6">
+      {err && <p className="text-sm text-red-300">{err}</p>}
+      {loading && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
+          Cargando…
         </div>
       )}
+
+      {/* RANKING — SIEMPRE visible */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
+        <h3 className="font-semibold mb-2">🏆 Clasificación</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-zinc-300">
+              <tr>
+                <th className="py-1 pr-3">#</th>
+                <th className="py-1 pr-3">Usuario</th>
+                <th className="py-1 pr-3">Puntos</th>
+                <th className="py-1 pr-3">Aciertos</th>
+                <th className="py-1 pr-3">Fallos</th>
+                <th className="py-1 pr-3">Última actividad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table.length === 0 ? (
+                <tr><td colSpan={6} className="py-2 text-zinc-400">Sin intentos todavía</td></tr>
+              ) : table.map((r, i) => (
+                <tr key={r.user} className="border-t border-zinc-800">
+                  <td className="py-1 pr-3">{i + 1}</td>
+                  <td className="py-1 pr-3">{r.user}</td>
+                  <td className="py-1 pr-3 font-semibold">{r.points}</td>
+                  <td className="py-1 pr-3">{r.solved}</td>
+                  <td className="py-1 pr-3">{r.fails}</td>
+                  <td className="py-1 pr-3">{r.last ? new Date(r.last).toLocaleString() : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs mt-2 text-zinc-500">
+          Fórmula: <span className="font-mono">puntos = aciertos × 100 − fallos</span>.
+        </p>
+      </div>
+
+      {/* DETALLE DE RESPUESTAS — filtrado por “siguiente desbloqueada”.
+          Admin lo ve TODO.  */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
+        <h3 className="font-semibold mb-2">📝 Respuestas visibles</h3>
+        <p className="text-xs text-zinc-400 mb-3">
+          Solo se muestran respuestas de pistas cuya <b>siguiente</b> ya está desbloqueada.
+          {isAdmin && " (Admin: sin filtro)"}.
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-zinc-300">
+              <tr>
+                <th className="py-1 pr-3">Usuario</th>
+                <th className="py-1 pr-3">Pista</th>
+                <th className="py-1 pr-3">Correcta</th>
+                <th className="py-1 pr-3">Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAttempts.length === 0 ? (
+                <tr><td colSpan={4} className="py-2 text-zinc-400">Nada que mostrar aún</td></tr>
+              ) : visibleAttempts.map((a, i) => (
+                <tr key={i} className="border-t border-zinc-800">
+                  <td className="py-1 pr-3">{a.attendee || "—"}</td>
+                  <td className="py-1 pr-3">#{a.clue_number}</td>
+                  <td className="py-1 pr-3">{a.is_correct ? "✅" : "❌"}</td>
+                  <td className="py-1 pr-3">{new Date(a.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
   );
 }
