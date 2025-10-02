@@ -1033,7 +1033,7 @@ function SecretBlock() {
         Os espero a partir de las 17:00 de la tarde en...
       </p>
       <img
-        src="https://scontent.fvlc5-1.fna.fbcdn.net/v/t39.30808-6/504143647_24244934781781281_8196324863052406172_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=6-jk2hytCS0Q7kNvwEaYuxO&_nc_oc=Adm1415Ca0IZ_UztI28KRUUyLOR71tcPN914_69SQ3buVABomYTQn3Q5fzIE1M8ZU-Y&_nc_zt=23&_nc_ht=scontent.fvlc5-1.fna&_nc_gid=ZZw5MvbeyJs_Ch21M-DUJw&oh=00_AfY4CxpClYP3ETNWwLmBp71IUZIu7IYhPORZFjk6WqREoQ&oe=68DC64AD"
+        src="https://vvrl.cc/g7xjs1"
         alt="Ubicación secreta"
         className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] object-contain"
       />
