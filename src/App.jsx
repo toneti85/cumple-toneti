@@ -1122,7 +1122,8 @@ function SecretBlock({ imageUrl }) {
    CLASIFICACIÓN (ranking + respuestas visibles filtradas)
    =================== */
 function LeaderboardSection() {
-  const [visibleAttempts, setVisibleAttempts] = useState([]); // intentos filtrados
+  const [visibleAttempts, setVisibleAttempts] = useState([]); // intentos filtrados para el detalle
+  const [allAttempts, setAllAttempts] = useState([]);         // TODOS los intentos (sin filtrar) para ranking
   const [table, setTable] = useState([]);                     // ranking
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -1141,29 +1142,29 @@ function LeaderboardSection() {
         // Ordenar pistas por fecha y numerarlas 1..N
         const ordered = (clues || []).slice()
           .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
-        const clueNum = new Map();          // id -> nº pista (1 basado)
-        const nextRevealed = new Map();     // id -> boolean (si la siguiente ya está revelada)
+        const clueNum = new Map();      // id -> nº pista (1..N)
+        const nextRevealed = new Map(); // id -> bool (si la siguiente ya está revelada)
         ordered.forEach((c, i) => {
           clueNum.set(c.id, i + 1);
           const next = ordered[i + 1];
-          if (!next) nextRevealed.set(c.id, false); // la última nunca muestra sus respuestas
+          if (!next) nextRevealed.set(c.id, false); // la última no muestra respuestas
           else nextRevealed.set(c.id, new Date(now) >= new Date(next.revealAt));
         });
 
-        // Filtrar intentos que se pueden mostrar
         const base = Array.isArray(attempts) ? attempts : [];
-        const filtered = isAdmin ? base : base.filter(a => nextRevealed.get(a.clue_id) === true);
+        setAllAttempts(base); // ← guardamos TODOS para el ranking
 
-        // Guardar intentos visibles (con nº de pista)
+        // Intentos para el DETALLE (filtrados por “siguiente desbloqueada”, salvo admin)
+        const filtered = isAdmin ? base : base.filter(a => nextRevealed.get(a.clue_id) === true);
         const normalized = filtered.map(a => ({
           ...a,
           clue_number: clueNum.get(a.clue_id) ?? a.clue_id
         }));
         setVisibleAttempts(normalized);
 
-        // Calcular ranking SIEMPRE (usa los intentos visibles)
+        // ===== RANKING con TODOS los intentos (no filtrados) =====
         const byUser = new Map();
-        for (const a of normalized) {
+        for (const a of base) {
           const k = a.attendee || "¿Sin nombre?";
           if (!byUser.has(k)) byUser.set(k, []);
           byUser.get(k).push(a);
@@ -1185,13 +1186,14 @@ function LeaderboardSection() {
           const points = solved * 100 - fails;
           return { user, points, solved, fails, last };
         });
+
         rows.sort((a, b) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.solved !== a.solved) return b.solved - a.solved;
           return a.fails - b.fails;
         });
         setTable(rows);
-      } catch (e) {
+      } catch {
         if (active) setErr("No se pudieron cargar los datos");
       }
       setLoading(false);
@@ -1208,7 +1210,7 @@ function LeaderboardSection() {
         </div>
       )}
 
-      {/* RANKING — SIEMPRE visible */}
+      {/* RANKING — SIEMPRE con TODOS los intentos */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
         <h3 className="font-semibold mb-2">🏆 Clasificación</h3>
         <div className="overflow-x-auto">
@@ -1244,12 +1246,11 @@ function LeaderboardSection() {
         </p>
       </div>
 
-      {/* DETALLE DE RESPUESTAS — filtrado por “siguiente desbloqueada”.
-          Admin lo ve TODO.  */}
+      {/* DETALLE — Solo pistas cuya siguiente esté desbloqueada (admin todo) */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
         <h3 className="font-semibold mb-2">📝 Respuestas visibles</h3>
         <p className="text-xs text-zinc-400 mb-3">
-          Solo se muestran respuestas de pistas cuya <b>siguiente</b> ya está desbloqueada.
+          Solo se muestran respuestas de pistas cuya <b>siguiente</b> ya está desbloqueada
           {isAdmin && " (Admin: sin filtro)"}.
         </p>
 
@@ -1281,3 +1282,4 @@ function LeaderboardSection() {
     </section>
   );
 }
+
