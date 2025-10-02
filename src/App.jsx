@@ -1034,21 +1034,28 @@ function SecretBlock({ imageUrl }) {
         Os espero a partir de las 17:00 de la tarde en...
       </p>
 
-      {ok && imageUrl ? (
-        <img
-          src={imageUrl}
-          alt="Ubicación secreta"
-          loading="lazy"
-          onError={() => setOk(false)}
-          className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] w-full object-contain bg-black/40"
-        />
-      ) : (
-        <div className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] w-full p-6 bg-black/40 text-fuchsia-200">
-          <div className="text-sm opacity-80">
-            📷 No se pudo cargar la imagen. Sube la foto a un host estable (p. ej. Supabase Storage) y pon la URL en “URL imagen ubicación”.
+      <div className="mx-auto max-w-md sm:max-w-lg"> {/* ⬅️ ancho máximo del bloque */}
+        {ok && imageUrl ? (
+          <img
+            src={imageUrl}
+            alt="Ubicación secreta"
+            loading="lazy"
+            onError={() => setOk(false)}
+            className="
+              mx-auto rounded-2xl border border-fuchsia-600
+              h-40 sm:h-56 md:h-64    /* ⬅️ alto fijo por breakpoint */
+              w-auto                 /* ⬅️ NO estirar al ancho completo */
+              object-contain bg-black/40
+            "
+          />
+        ) : (
+          <div className="mx-auto rounded-2xl border border-fuchsia-600 p-6 bg-black/40 text-fuchsia-200">
+            <div className="text-sm opacity-80">
+              📷 No se pudo cargar la imagen. Sube la foto a un host estable y pon la URL en “URL imagen ubicación”.
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
