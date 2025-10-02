@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 /* =============================================================
-   Cumple — App 100% Supabase (sin localStorage) con panel de admin
+   Cumple — App con páginas (Inicio, Clasificación, Confirmados)
+   Supabase REST directo (sin SDK), hash routing, Tailwind
    ============================================================= */
 
 const GALLERY_UPLOAD_URL =
@@ -10,12 +11,14 @@ const GALLERY_UPLOAD_URL =
 /* ===================
    CONFIG. SUPABASE
    =================== */
+// VARIABLES DE ENTORNO (Vite)
 const SUPABASE = {
   url: (import.meta?.env?.VITE_SUPABASE_URL || "").replace(/\/+$/, ""),
   key: (import.meta?.env?.VITE_SUPABASE_ANON_KEY || "").trim(),
 };
 const hasSupa = Boolean(SUPABASE.url && SUPABASE.key);
 
+// Fetch genérico con logs y corrección de rutas
 async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
   if (!hasSupa) throw new Error("Supabase no configurado");
   const cleanPath = String(path || "").replace(/^\/+/, "");
@@ -43,7 +46,7 @@ async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
 }
 
 /* ===================
-   HELPERS
+   HELPERS DE FECHA Y UTILIDADES
    =================== */
 const toIsoT = (s) => (typeof s === "string" && !s.includes("T") ? s.replace(" ", "T") : s);
 const fmt = (d) => new Date(d).toLocaleString();
@@ -123,7 +126,8 @@ function miniSpotifyEmbed(url) {
     const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
     if (parts[0] !== "embed") parts.unshift("embed");
     const search = new URLSearchParams(parsed.search);
-    search.set("theme", "0"); search.set("utm_source", "generator");
+    search.set("theme", "0");
+    search.set("utm_source", "generator");
     return `https://open.spotify.com/${parts.join("/")}?${search.toString()}`;
   } catch { return url; }
 }
@@ -141,7 +145,7 @@ function normalizeSpotifyEmbed(url) {
 }
 
 /* ===================
-   ENDPOINTS REST
+   ENDPOINTS ESPECÍFICOS (ajusta nombres de tabla/columnas si difieren)
    =================== */
 async function supaGetSettings() {
   const rows = await supaFetch(`rest/v1/settings?select=*&limit=1`);
@@ -180,7 +184,8 @@ async function supaListClues() {
   const rows = await supaFetch(
     `rest/v1/clues?select=id,title,body,solution,reveal_at,created_at&order=reveal_at.asc&limit=1000`
   );
-  return (Array.isArray(rows) ? rows : []).map((x) => ({
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map((x) => ({
     id: x.id,
     title: x.title ?? "",
     body: x.body ?? "",
@@ -235,6 +240,7 @@ async function supaListAttendees() {
     `rest/v1/attendees?select=name,meal,party,created_at&order=created_at.desc`
   );
 }
+// INTENTOS (clue_attempts: id, clue_id, attendee, answer, is_correct, created_at)
 async function supaListAttempts({ clueId, attendee }) {
   if (!clueId || !attendee) return [];
   const url = `rest/v1/clue_attempts?select=id,answer,is_correct,created_at&clue_id=eq.${encodeURIComponent(
@@ -274,7 +280,7 @@ function useHashRoute() {
 }
 
 /* ===================
-   HOOK BBDD
+   Hook para cargar de BBDD
    =================== */
 function useDbData() {
   const [settings, setSettings] = useState(null);
@@ -313,7 +319,7 @@ function useDbData() {
 }
 
 /* ===================
-   APP
+   MAIN APP
    =================== */
 export default function App() {
   const { route } = useHashRoute();
@@ -323,16 +329,10 @@ export default function App() {
       <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur border-b border-zinc-800">
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2">
           <a href="#/" className="font-bold text-red-500">🎉 Cumple</a>
-          <nav className="flex items-center gap-2 text-sm">
-            <a href="#/" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
-              Inicio
-            </a>
-            <a href="#/clasificacion" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
-              Clasificación
-            </a>
-            <a href="#/confirmados" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
-              Confirmados
-            </a>
+          <nav className="flex items-center gap-2 text-sm text-red-500">
+            <a href="#/" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Inicio</a>
+            <a href="#/clasificacion" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Clasificación</a>
+            <a href="#/confirmados" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Confirmados</a>
           </nav>
         </div>
       </header>
@@ -340,6 +340,7 @@ export default function App() {
       {route === "/clasificacion" ? <LeaderboardPage /> :
        route === "/confirmados"   ? <ConfirmedPage />   :
                                     <HomePage />}
+
       <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-10 text-center text-zinc-500 text-xs sm:text-sm">
         Hecho con ❤️ por Toneti · {new Date().getFullYear()}
       </footer>
@@ -371,7 +372,7 @@ function HomePage() {
     [now, clues, isAdmin]
   );
 
-  // última pista por fecha
+  // última pista por fecha → controla el bloque secreto
   const lastClueAt = useMemo(() => {
     if (!clues?.length) return null;
     const ts = clues.map(c => new Date(c.revealAt).getTime()).filter(Number.isFinite);
@@ -384,6 +385,7 @@ function HomePage() {
     settings?.galleryOpensAt &&
     (isAdmin || now >= new Date(settings.galleryOpensAt));
 
+  // Confirmación por nombre en BBDD
   const [isConfirmed, setIsConfirmed] = useState(false);
   useEffect(() => {
     let active = true;
@@ -411,7 +413,7 @@ function HomePage() {
           </p>
           {error && <p className="mt-3 text-center text-sm text-red-300">{error}</p>}
 
-          {/* Cuenta atrás o bloque secreto (controlado por la última pista) */}
+          {/* Cuenta atrás / bloque secreto */}
           <div className="mt-6">
             {isAdmin ? (
               <SecretBlock imageUrl={settings?.locationImageUrl} />
@@ -423,7 +425,7 @@ function HomePage() {
                   <TimeCard label="Min" value={t.m} />
                   <TimeCard label="Seg" value={t.s} />
                 </div>
-              ) : eventDate && now < new Date(eventDate.getTime() + 24*60*60*1000) ? (
+              ) : eventDate && now < new Date(eventDate.getTime() + 24 * 60 * 60 * 1000) ? (
                 <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-600 text-emerald-300 text-center">
                   ¡Es hoy! 🚀
                 </div>
@@ -551,7 +553,7 @@ function HomePage() {
         )}
       </section>
 
-      {/* CTA hacia Confirmados */}
+      {/* CTA hacia Confirmados (rojo) */}
       <div className="mt-6">
         <a href="#/confirmados" className="text-red-500 hover:text-red-400 underline">
           Ver lista de confirmados →
@@ -570,14 +572,14 @@ function HomePage() {
 }
 
 /* ===================
-   PÁGINA: CLASIFICACIÓN (sin respuestas visibles)
+   PÁGINA: CLASIFICACIÓN (sin respuestas)
    =================== */
 function LeaderboardPage() {
   return (
     <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
       <h1 className="text-2xl sm:text-3xl font-semibold">🏆 Clasificación</h1>
       <p className="text-sm text-zinc-400 mt-1">
-        Ranking por puntos.{" "}
+        Ranking por puntos (sin mostrar respuestas).{" "}
         <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
       </p>
       <LeaderboardSection />
@@ -1065,7 +1067,9 @@ function AttendeesAdmin() {
           <tbody>
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={4} className="py-2 text-zinc-400">Sin asistentes aún</td>
+                <td colSpan={4} className="py-2 text-zinc-400">
+                  Sin asistentes aún
+                </td>
               </tr>
             )}
             {rows.map((r, i) => (
@@ -1137,7 +1141,7 @@ function LeaderboardSection() {
         ]);
         if (!active) return;
 
-        // filtro “pistas con siguiente revelada” (para que el ranking no anticipe)
+        // filtro “pistas con siguiente revelada”
         const ordered = (Array.isArray(clues) ? clues : [])
           .slice()
           .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
@@ -1150,7 +1154,6 @@ function LeaderboardSection() {
         });
 
         const baseRows = Array.isArray(attempts) ? attempts : [];
-        // Para el ranking podemos permitir todos, pero si quieres ser estricto:
         const filtered = isAdmin ? baseRows : baseRows.filter(a => nextMap[a.clue_id] === true);
         setRows(filtered);
       } catch {
@@ -1236,8 +1239,6 @@ function LeaderboardSection() {
           </p>
         </div>
       )}
-
-      {/* OJO: ya no mostramos las respuestas por usuario */}
     </section>
   );
 }
