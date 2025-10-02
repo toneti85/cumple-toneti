@@ -1122,84 +1122,99 @@ function SecretBlock({ imageUrl }) {
    CLASIFICACIÓN (ranking + respuestas visibles filtradas)
    =================== */
 function LeaderboardSection() {
-  const [visibleAttempts, setVisibleAttempts] = useState([]); // intentos filtrados para el detalle
-  const [allAttempts, setAllAttempts] = useState([]);         // TODOS los intentos (sin filtrar) para ranking
-  const [table, setTable] = useState([]);                     // ranking
+  const [allAttempts, setAllAttempts] = useState([]); // TODOS los intentos (no refetch cada segundo)
+  const [clues, setClues] = useState([]);             // Todas las pistas
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const now = useNow(1000);
+  const now = useNow(1000);                            // solo para recalcular filtros en memoria
   const isAdmin = getAdminFlagFromUrl();
 
+  // 1) FETCH solo al montar (y si quieres, podrías añadir un botón de refresco manual)
   useEffect(() => {
     let active = true;
     (async () => {
       if (!hasSupa) return setErr("Supabase no configurado ❌");
       setLoading(true); setErr("");
       try {
-        const [attempts, clues] = await Promise.all([supaListAllAttempts(), supaListClues()]);
+        const [attempts, cluesList] = await Promise.all([
+          supaListAllAttempts(),
+          supaListClues(),
+        ]);
         if (!active) return;
-
-        // Ordenar pistas por fecha y numerarlas 1..N
-        const ordered = (clues || []).slice()
-          .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
-        const clueNum = new Map();      // id -> nº pista (1..N)
-        const nextRevealed = new Map(); // id -> bool (si la siguiente ya está revelada)
-        ordered.forEach((c, i) => {
-          clueNum.set(c.id, i + 1);
-          const next = ordered[i + 1];
-          if (!next) nextRevealed.set(c.id, false); // la última no muestra respuestas
-          else nextRevealed.set(c.id, new Date(now) >= new Date(next.revealAt));
-        });
-
-        const base = Array.isArray(attempts) ? attempts : [];
-        setAllAttempts(base); // ← guardamos TODOS para el ranking
-
-        // Intentos para el DETALLE (filtrados por “siguiente desbloqueada”, salvo admin)
-        const filtered = isAdmin ? base : base.filter(a => nextRevealed.get(a.clue_id) === true);
-        const normalized = filtered.map(a => ({
-          ...a,
-          clue_number: clueNum.get(a.clue_id) ?? a.clue_id
-        }));
-        setVisibleAttempts(normalized);
-
-        // ===== RANKING con TODOS los intentos (no filtrados) =====
-        const byUser = new Map();
-        for (const a of base) {
-          const k = a.attendee || "¿Sin nombre?";
-          if (!byUser.has(k)) byUser.set(k, []);
-          byUser.get(k).push(a);
-        }
-        const rows = [...byUser.entries()].map(([user, atts]) => {
-          const byClue = new Map();
-          atts.forEach(x => {
-            if (!byClue.has(x.clue_id)) byClue.set(x.clue_id, []);
-            byClue.get(x.clue_id).push(x);
-          });
-          let solved = 0, fails = 0, last = 0;
-          byClue.forEach(list => {
-            const ok = list.some(x => x.is_correct);
-            if (ok) solved += 1;
-            fails += list.filter(x => !x.is_correct).length;
-            const lastTs = Math.max(...list.map(x => new Date(x.created_at).getTime()));
-            if (lastTs > last) last = lastTs;
-          });
-          const points = solved * 100 - fails;
-          return { user, points, solved, fails, last };
-        });
-
-        rows.sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.solved !== a.solved) return b.solved - a.solved;
-          return a.fails - b.fails;
-        });
-        setTable(rows);
+        setAllAttempts(Array.isArray(attempts) ? attempts : []);
+        setClues(Array.isArray(cluesList) ? cluesList : []);
       } catch {
         if (active) setErr("No se pudieron cargar los datos");
       }
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [now, isAdmin]);
+  }, []);
+
+  // 2) Estructuras auxiliares (orden y nº de pista)
+  const { clueNum, nextRevealed } = useMemo(() => {
+    const ordered = clues.slice().sort(
+      (a, b) => new Date(a.revealAt) - new Date(b.revealAt)
+    );
+    const num = new Map();      // id -> nº pista (1..N)
+    const nextMap = new Map();  // id -> bool (si la siguiente ya está revelada a fecha de "now")
+    ordered.forEach((c, i) => {
+      num.set(c.id, i + 1);
+      const next = ordered[i + 1];
+      if (!next) nextMap.set(c.id, false);
+      else nextMap.set(c.id, new Date(now) >= new Date(next.revealAt));
+    });
+    return { clueNum: num, nextRevealed: nextMap };
+  }, [clues, now]);
+
+  // 3) DETALLE visible: filtra intentos en memoria (no refetch)
+  const visibleAttempts = useMemo(() => {
+    if (isAdmin) {
+      return allAttempts.map(a => ({
+        ...a,
+        clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
+      }));
+    }
+    return allAttempts
+      .filter(a => nextRevealed.get(a.clue_id) === true)
+      .map(a => ({
+        ...a,
+        clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
+      }));
+  }, [allAttempts, clueNum, nextRevealed, isAdmin]);
+
+  // 4) RANKING: siempre con TODOS los intentos (no filtrados)
+  const table = useMemo(() => {
+    const byUser = new Map();
+    for (const a of allAttempts) {
+      const k = a.attendee || "¿Sin nombre?";
+      if (!byUser.has(k)) byUser.set(k, []);
+      byUser.get(k).push(a);
+    }
+    const rows = [...byUser.entries()].map(([user, atts]) => {
+      const byClue = new Map();
+      atts.forEach(x => {
+        if (!byClue.has(x.clue_id)) byClue.set(x.clue_id, []);
+        byClue.get(x.clue_id).push(x);
+      });
+      let solved = 0, fails = 0, last = 0;
+      byClue.forEach(list => {
+        const ok = list.some(x => x.is_correct);
+        if (ok) solved += 1;
+        fails += list.filter(x => !x.is_correct).length;
+        const lastTs = Math.max(...list.map(x => new Date(x.created_at).getTime()));
+        if (lastTs > last) last = lastTs;
+      });
+      const points = solved * 100 - fails;
+      return { user, points, solved, fails, last };
+    });
+    rows.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.solved !== a.solved) return b.solved - a.solved;
+      return a.fails - b.fails;
+    });
+    return rows;
+  }, [allAttempts]);
 
   return (
     <section className="mt-6 space-y-6">
