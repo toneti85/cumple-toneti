@@ -171,6 +171,7 @@ async function supaGetSettings() {
     date: toIsoT(pick(s, "date_iso", "date")),
     locationLabel: pick(s, "location_label", "locationLabel"),
     locationUrl: pick(s, "location_url", "locationUrl"),
+    locationImageUrl: pick(s, "location_image_url", "locationImageUrl"),
     spotifyPlaylistUrl: pick(s, "spotify_url", "spotifyUrl"),
     galleryOpensAt: toIsoT(pick(s, "gallery_opens_at", "galleryOpensAt")),
   };
@@ -182,6 +183,7 @@ async function supaUpsertSettings(s) {
     date_iso: s.date,
     location_label: s.locationLabel,
     location_url: s.locationUrl,
+    location_image_url: s.locationImageUrl,
     spotify_url: s.spotifyPlaylistUrl,
     gallery_opens_at: s.galleryOpensAt,
     updated_at: new Date().toISOString(),
@@ -401,7 +403,7 @@ export default function App() {
           {/* Cuenta atrás / bloque secreto controlado por la ÚLTIMA pista */}
           <div className="mt-6">
             {isAdmin ? (
-              <SecretBlock />
+              <SecretBlock imageUrl={settings?.locationImageUrl} />
             ) : !lastClueRevealed ? (
               eventDate && !eventEnded ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
@@ -417,7 +419,7 @@ export default function App() {
                 </div>
               ) : null
             ) : (
-              <SecretBlock />
+              <SecretBlock imageUrl={settings?.locationImageUrl} />
             )}
           </div>
 
@@ -504,7 +506,6 @@ export default function App() {
                 currentName={currentName}
                 isConfirmed={isConfirmed}
                 isAdmin={isAdmin}
-                // 👇 NUEVO: saber si la pista siguiente ya está revelada
                 nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
               />
             ))}
@@ -711,14 +712,9 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   const solved = attempts.some(a => a.is_correct);
   const tries = attempts.length;
 
-  // 👇 NUEVO: mostrar solución si la siguiente pista ya está revelada
+  // Mostrar solución si: acierta, 3 fallos, admin o la siguiente pista ya está revelada
   const showSolution =
-    !!clue.solution && (
-      solved ||
-      tries >= maxAttempts ||
-      isAdmin ||
-      nextRevealed === true
-    );
+    !!clue.solution && (solved || tries >= maxAttempts || isAdmin || nextRevealed === true);
 
   useEffect(() => {
     let active = true;
@@ -905,6 +901,7 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
     date: settings?.date || "",
     locationLabel: settings?.locationLabel || "",
     locationUrl: settings?.locationUrl || "",
+    locationImageUrl: settings?.locationImageUrl || "",
     spotifyPlaylistUrl: settings?.spotifyPlaylistUrl || "",
     galleryOpensAt: settings?.galleryOpensAt || "",
   }));
@@ -916,6 +913,7 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
       date: settings?.date || "",
       locationLabel: settings?.locationLabel || "",
       locationUrl: settings?.locationUrl || "",
+      locationImageUrl: settings?.locationImageUrl || "",
       spotifyPlaylistUrl: settings?.spotifyPlaylistUrl || "",
       galleryOpensAt: settings?.galleryOpensAt || "",
     });
@@ -951,6 +949,7 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
         </label>
         <TextInput label="Ubicación (texto)" value={form.locationLabel} onChange={(v) => update("locationLabel", v)} />
         <TextInput label="URL ubicación" value={form.locationUrl} onChange={(v) => update("locationUrl", v)} />
+        <TextInput label="URL imagen ubicación (estable)" value={form.locationImageUrl} onChange={(v) => update("locationImageUrl", v)} />
         <TextInput label="Playlist Spotify" value={form.spotifyPlaylistUrl} onChange={(v) => update("spotifyPlaylistUrl", normalizeSpotifyEmbed(v))} />
         <label className="text-sm">
           <span className="block text-blue-200/80 mb-1">Apertura galería</span>
@@ -1025,18 +1024,31 @@ function AttendeesAdmin() {
   );
 }
 
-/* ======= Bloque secreto ======= */
-function SecretBlock() {
+/* ======= Bloque secreto con fallback de imagen ======= */
+function SecretBlock({ imageUrl }) {
+  const [ok, setOk] = useState(true);
+
   return (
     <div className="p-3 sm:p-4 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-600 text-fuchsia-300 text-center">
       <p className="font-semibold text-lg mb-3">
         Os espero a partir de las 17:00 de la tarde en...
       </p>
-      <img
-        src="https://vvrl.cc/g7xjs1"
-        alt="Ubicación secreta"
-        className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] object-contain"
-      />
+
+      {ok && imageUrl ? (
+        <img
+          src={imageUrl}
+          alt="Ubicación secreta"
+          loading="lazy"
+          onError={() => setOk(false)}
+          className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] w-full object-contain bg-black/40"
+        />
+      ) : (
+        <div className="mx-auto rounded-2xl border border-fuchsia-600 max-h-[400px] w-full p-6 bg-black/40 text-fuchsia-200">
+          <div className="text-sm opacity-80">
+            📷 No se pudo cargar la imagen. Sube la foto a un host estable (p. ej. Supabase Storage) y pon la URL en “URL imagen ubicación”.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
