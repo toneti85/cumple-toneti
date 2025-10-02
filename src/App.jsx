@@ -10,14 +10,12 @@ const GALLERY_UPLOAD_URL =
 /* ===================
    CONFIG. SUPABASE
    =================== */
-// VARIABLES DE ENTORNO (Vite)
 const SUPABASE = {
   url: (import.meta?.env?.VITE_SUPABASE_URL || "").replace(/\/+$/, ""),
   key: (import.meta?.env?.VITE_SUPABASE_ANON_KEY || "").trim(),
 };
 const hasSupa = Boolean(SUPABASE.url && SUPABASE.key);
 
-// Fetch genérico con logs y corrección de rutas
 async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
   if (!hasSupa) throw new Error("Supabase no configurado");
   const cleanPath = String(path || "").replace(/^\/+/, "");
@@ -45,9 +43,10 @@ async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
 }
 
 /* ===================
-   HELPERS DE FECHA Y UTILIDADES
+   HELPERS
    =================== */
 const toIsoT = (s) => (typeof s === "string" && !s.includes("T") ? s.replace(" ", "T") : s);
+const fmt = (d) => new Date(d).toLocaleString();
 
 function useNow(tickMs = 1000) {
   const [now, setNow] = useState(() => new Date());
@@ -68,7 +67,6 @@ function formatDiff(ms) {
   };
 }
 function cx(...classes) { return classes.filter(Boolean).join(" "); }
-const fmt = (d) => new Date(d).toLocaleString();
 
 function getAdminFlagFromUrl() {
   if (typeof window === "undefined") return false;
@@ -103,7 +101,7 @@ function buildICS({ title, dateIso, details = "" }) {
     `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
   const startUtc = toUTC(dt);
   const endUtc = toUTC(new Date(dt.getTime() + 3 * 60 * 60 * 1000));
-  const esc = (s) => String(s).replaceAll(/([,;])/g, "\\$1").replaceAll(/\n/g, "\\n");
+  const esc = (s) => String(s).replaceAll(/([,;])/g, "\\$1").replaceAll("\n", "\\n");
   return [
     "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Cumple//ES","BEGIN:VEVENT",
     `UID:${Math.random().toString(16).slice(2)}`,
@@ -143,7 +141,7 @@ function normalizeSpotifyEmbed(url) {
 }
 
 /* ===================
-   ENDPOINTS ESPECÍFICOS
+   ENDPOINTS REST
    =================== */
 async function supaGetSettings() {
   const rows = await supaFetch(`rest/v1/settings?select=*&limit=1`);
@@ -237,14 +235,19 @@ async function supaListAttendees() {
     `rest/v1/attendees?select=name,meal,party,created_at&order=created_at.desc`
   );
 }
-
-/* ======= Intentos ======= */
 async function supaListAttempts({ clueId, attendee }) {
   if (!clueId || !attendee) return [];
   const url = `rest/v1/clue_attempts?select=id,answer,is_correct,created_at&clue_id=eq.${encodeURIComponent(
     clueId
   )}&attendee=eq.${encodeURIComponent(attendee)}&order=created_at.asc`;
   return await supaFetch(url);
+}
+async function supaInsertAttempt({ clueId, attendee, answer, isCorrect }) {
+  return await supaFetch(`rest/v1/clue_attempts`, {
+    method: "POST",
+    body: { clue_id: clueId, attendee, answer, is_correct: !!isCorrect },
+    headers: { Prefer: "return=representation" },
+  });
 }
 async function supaListAllAttempts() {
   return await supaFetch(
@@ -253,13 +256,13 @@ async function supaListAllAttempts() {
 }
 
 /* ===================
-   Mini router por hash
+   ROUTER (hash)
    =================== */
 function useHashRoute() {
   const get = () => {
     const h = (typeof window !== "undefined" ? window.location.hash : "") || "";
     const path = h.replace(/^#/, "").split("?")[0];
-    return path || "/"; // "" -> "/"
+    return path || "/";
   };
   const [route, setRoute] = useState(get);
   useEffect(() => {
@@ -267,12 +270,11 @@ function useHashRoute() {
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-  const push = (to) => { window.location.hash = to; };
-  return { route, push };
+  return { route };
 }
 
 /* ===================
-   Hook para cargar de BBDD
+   HOOK BBDD
    =================== */
 function useDbData() {
   const [settings, setSettings] = useState(null);
@@ -311,32 +313,33 @@ function useDbData() {
 }
 
 /* ===================
-   APP PRINCIPAL (usa router)
+   APP
    =================== */
 export default function App() {
-  const db = useDbData(); // para pasar a páginas
-  const { settings, clues } = db;
-  const { route, push } = useHashRoute();
+  const { route } = useHashRoute();
 
-  // Barra superior con navegación
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
-      <header className="sticky top-0 z-20 bg-zinc-950/70 backdrop-blur border-b border-zinc-800">
-        <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between">
-          <a href="#/" className="font-semibold">🎉 Cumple</a>
+      <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur border-b border-zinc-800">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2">
+          <a href="#/" className="font-bold text-red-500">🎉 Cumple</a>
           <nav className="flex items-center gap-2 text-sm">
-            <a href="#/" className="px-3 py-1 rounded-lg hover:bg-zinc-800">Inicio</a>
-            <a href="#/clasificacion" className="px-3 py-1 rounded-lg hover:bg-zinc-800">Clasificación</a>
+            <a href="#/" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
+              Inicio
+            </a>
+            <a href="#/clasificacion" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
+              Clasificación
+            </a>
+            <a href="#/confirmados" className="px-3 py-1 rounded-lg text-red-500 hover:text-red-400 hover:bg-zinc-800">
+              Confirmados
+            </a>
           </nav>
         </div>
       </header>
 
-      {route === "/clasificacion" ? (
-        <LeaderboardPage />
-      ) : (
-        <HomePage {...db} />
-      )}
-
+      {route === "/clasificacion" ? <LeaderboardPage /> :
+       route === "/confirmados"   ? <ConfirmedPage />   :
+                                    <HomePage />}
       <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-10 text-center text-zinc-500 text-xs sm:text-sm">
         Hecho con ❤️ por Toneti · {new Date().getFullYear()}
       </footer>
@@ -347,10 +350,14 @@ export default function App() {
 /* ===================
    PÁGINA: INICIO
    =================== */
-function HomePage({
-  settings, setSettings, clues, setClues,
-  currentName, setCurrentName, loading, error, reload
-}) {
+function HomePage() {
+  const {
+    settings, setSettings,
+    clues, setClues,
+    currentName, setCurrentName,
+    loading, error, reload,
+  } = useDbData();
+
   const isAdmin = getAdminFlagFromUrl();
   const now = useNow(1000);
 
@@ -364,6 +371,7 @@ function HomePage({
     [now, clues, isAdmin]
   );
 
+  // última pista por fecha
   const lastClueAt = useMemo(() => {
     if (!clues?.length) return null;
     const ts = clues.map(c => new Date(c.revealAt).getTime()).filter(Number.isFinite);
@@ -380,38 +388,30 @@ function HomePage({
   useEffect(() => {
     let active = true;
     (async () => {
-      if (!currentName || !hasSupa) {
-        setIsConfirmed(false);
-        return;
-      }
+      if (!currentName || !hasSupa) { setIsConfirmed(false); return; }
       try {
         const row = await supaSelectAttendee(currentName);
         if (active) setIsConfirmed(!!row && (row.meal || row.party));
-      } catch {
-        if (active) setIsConfirmed(false);
-      }
+      } catch { if (active) setIsConfirmed(false); }
     })();
     return () => { active = false; };
   }, [currentName]);
 
   return (
-    <>
+    <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
       {/* HERO */}
       <section className="relative w-full flex items-center justify-center py-6 sm:py-10">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
         <div className="w-full max-w-screen-md px-3 sm:px-4">
           <h1 className="text-2xl sm:text-3xl leading-tight font-semibold tracking-tight text-center">
             {settings?.title ?? "Configura el evento en Admin"}
           </h1>
-
           <p className="mt-2 text-center text-sm sm:text-base text-zinc-400">
             {settings?.date ? new Date(settings.date).toLocaleString() : "—"} ·{" "}
             <LocationLabel label={settings?.locationLabel ?? "—"} />
           </p>
-
           {error && <p className="mt-3 text-center text-sm text-red-300">{error}</p>}
 
-          {/* Cuenta atrás / bloque secreto controlado por la ÚLTIMA pista */}
+          {/* Cuenta atrás o bloque secreto (controlado por la última pista) */}
           <div className="mt-6">
             {isAdmin ? (
               <SecretBlock imageUrl={settings?.locationImageUrl} />
@@ -435,15 +435,21 @@ function HomePage({
 
           {/* Fila RSVP + Playlist */}
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-            <RSVPBox currentName={currentName} setCurrentName={setCurrentName} onConfirmedChange={setIsConfirmed} />
+            <RSVPBox
+              currentName={currentName}
+              setCurrentName={setCurrentName}
+              onConfirmedChange={setIsConfirmed}
+            />
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
               <h3 className="text-sm text-zinc-300 mb-2">🎵 Playlist</h3>
               <div className="rounded-xl overflow-hidden border border-zinc-800">
                 <iframe
-                  className="w-full" style={{ height: 152 }}
+                  className="w-full"
+                  style={{ height: 152 }}
                   src={miniSpotifyEmbed(settings?.spotifyPlaylistUrl || "")}
                   allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                  loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   title="Spotify playlist"
                 />
               </div>
@@ -459,7 +465,9 @@ function HomePage({
               className="h-12 sm:h-[52px] py-0"
             />
             <a
-              href={settings?.locationUrl || "#"} target="_blank" rel="noreferrer"
+              href={settings?.locationUrl || "#"}
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex items-center justify-center rounded-2xl px-4 h-12 sm:h-[52px] bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full"
             >
               Ver ubicación
@@ -469,72 +477,115 @@ function HomePage({
       </section>
 
       {/* CONTENIDO */}
-      <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
-        {/* Pistas */}
-        <CluesSection
-          clues={clues}
-          currentName={currentName}
-          isAdmin={isAdmin}
-          loading={loading}
-          isConfirmedInitial={false}
-        />
+      <section className="mt-6 sm:mt-8">
+        <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
+          Pistas semanales <span className="ml-2 text-xs text-zinc-500">({clues.length})</span>
+        </h2>
 
-        {/* Galería */}
-        <section className="mt-10">
-          <h2 className="text-lg sm:text-xl font-medium mb-2">📸 Galería</h2>
-          {!settings?.galleryOpensAt || !galleryOpen ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
-              🔒 Disponible el {settings?.galleryOpensAt ? fmt(settings.galleryOpensAt) : "—"}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-emerald-700/60 bg-emerald-500/5 p-4 mb-4">
-              <div className="flex flex-col md:flex-row items-center gap-4">
-                <img
-                  src={buildQrUrl(GALLERY_UPLOAD_URL, 320)}
-                  alt="QR para subir fotos"
-                  className="w-48 h-48 md:w-56 md:h-56 rounded-xl border border-emerald-700/60 bg-black object-contain"
-                  loading="lazy"
-                />
-                <div className="text-emerald-200">
-                  <p className="font-semibold">¡Sube tus fotos a la galería!</p>
-                  <p className="text-sm opacity-80 mt-1">Escanea el QR con tu móvil o pulsa el botón:</p>
-                  <a
-                    href={GALLERY_UPLOAD_URL} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center mt-3 rounded-xl px-3 py-2 bg-white text-black text-sm"
-                  >
-                    Abrir enlace para subir fotos
-                  </a>
-                </div>
+        {!isConfirmed && !isAdmin ? (
+          <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
+            ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha.
+            <br />
+            Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
+          </div>
+        ) : null}
+
+        {loading && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
+            Cargando…
+          </div>
+        )}
+
+        {!loading && clues.length === 0 && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
+            No hay pistas en la BBDD. Añádelas en el panel de administración.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          {revealed.map((c, idx) => (
+            <ClueCard
+              key={c.id}
+              clue={c}
+              currentName={currentName}
+              isConfirmed={isConfirmed}
+              isAdmin={isAdmin}
+              nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Galería */}
+      <section className="mt-10">
+        <h2 className="text-lg sm:text-xl font-medium mb-2">📸 Galería</h2>
+        {!settings?.galleryOpensAt || !galleryOpen ? (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
+            🔒 Disponible el {settings?.galleryOpensAt ? fmt(settings.galleryOpensAt) : "—"}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-emerald-700/60 bg-emerald-500/5 p-4 mb-4">
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <img
+                src={buildQrUrl(GALLERY_UPLOAD_URL, 320)}
+                alt="QR para subir fotos"
+                className="w-48 h-48 md:w-56 md:h-56 rounded-xl border border-emerald-700/60 bg-black object-contain"
+                loading="lazy"
+              />
+              <div className="text-emerald-200">
+                <p className="font-semibold">¡Sube tus fotos a la galería!</p>
+                <p className="text-sm opacity-80 mt-1">
+                  Escanea el QR con tu móvil o pulsa el botón:
+                </p>
+                <a
+                  href={GALLERY_UPLOAD_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center mt-3 rounded-xl px-3 py-2 bg-white text-black text-sm"
+                >
+                  Abrir enlace para subir fotos
+                </a>
               </div>
             </div>
-          )}
-        </section>
-
-        {/* Admin */}
-        {isAdmin && (
-          <section className="mt-10">
-            <AdminPanelSettings settings={settings} setSettings={setSettings} onSaved={reload} />
-            <AdminPanelClues clues={clues} setClues={setClues} />
-          </section>
+          </div>
         )}
-      </main>
-    </>
+      </section>
+
+      {/* CTA hacia Confirmados */}
+      <div className="mt-6">
+        <a href="#/confirmados" className="text-red-500 hover:text-red-400 underline">
+          Ver lista de confirmados →
+        </a>
+      </div>
+
+      {/* Admin */}
+      {isAdmin && (
+        <section className="mt-10">
+          <AdminPanelSettings settings={settings} setSettings={setSettings} onSaved={reload} />
+          <AdminPanelClues clues={clues} setClues={setClues} />
+        </section>
+      )}
+    </main>
   );
 }
 
 /* ===================
-   PÁGINA: CLASIFICACIÓN (aparte)
+   PÁGINA: CLASIFICACIÓN
    =================== */
 function LeaderboardPage() {
   return (
     <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
       <h1 className="text-2xl sm:text-3xl font-semibold">🏆 Clasificación</h1>
       <p className="text-sm text-zinc-400 mt-1">
-        Resultados de las pruebas por usuario. <a href="#/" className="underline hover:text-zinc-200">Volver al inicio</a>
+        Resultados de las pruebas por usuario.{" "}
+        <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
       </p>
       <LeaderboardSection />
       <div className="mt-6">
-        <a href="#/" className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700">
+        <a
+          href="#/"
+          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-red-500 hover:text-red-400"
+        >
           ← Volver a la página principal
         </a>
       </div>
@@ -543,64 +594,43 @@ function LeaderboardPage() {
 }
 
 /* ===================
-   SECCIONES / COMPONENTES
+   PÁGINA: CONFIRMADOS (nueva)
    =================== */
-function CluesSection({ clues, currentName, isAdmin, loading }) {
-  const now = useNow(1000);
-  const revealed = useMemo(
-    () => clues.map((c) => ({ ...c, revealed: isAdmin || now >= new Date(c.revealAt) })),
-    [now, clues, isAdmin]
-  );
-
-  // solo mostramos el aviso si no hay nombre confirmado (para simplificar, lo dejamos visible al no tenerlo en props)
-  const showNotice = true;
-
+function ConfirmedPage() {
   return (
-    <section className="mt-6 sm:mt-8">
-      <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
-        Pistas semanales <span className="ml-2 text-xs text-zinc-500">({clues.length})</span>
-      </h2>
-
-      {showNotice && !isAdmin ? (
-        <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-          ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha.
-          <br />
-          Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
-        </div>
-      ) : null}
-
-      {loading && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">Cargando…</div>
-      )}
-
-      {!loading && clues.length === 0 && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
-          No hay pistas en la BBDD. Añádelas en el panel de administración.
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {revealed.map((c, idx) => (
-          <ClueCard
-            key={c.id}
-            clue={c}
-            currentName={currentName}
-            isConfirmed={true}
-            isAdmin={isAdmin}
-            nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
-          />
-        ))}
+    <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
+      <h1 className="text-2xl sm:text-3xl font-semibold">👥 Confirmados</h1>
+      <p className="text-sm text-zinc-400 mt-1">
+        Lista actualizada de asistentes confirmados.{" "}
+        <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
+      </p>
+      <AttendeesAdmin />
+      <div className="mt-6">
+        <a
+          href="#/"
+          className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-red-500 hover:text-red-400"
+        >
+          ← Volver a la página principal
+        </a>
       </div>
-    </section>
+    </main>
   );
 }
 
-/* ======= Auxiliares visuales ======= */
+/* ===================
+   SUBCOMPONENTES AUXILIARES
+   =================== */
 function LocationLabel({ label }) {
   const TARGET = "¿Qué nos habrá preparado nuestro querido Toneti....?";
   if (typeof label === "string" && label.includes(TARGET)) {
     const [before, after] = label.split(TARGET);
-    return (<>{before}<span className="text-red-600 font-semibold">{TARGET}</span>{after}</>);
+    return (
+      <>
+        {before}
+        <span className="text-red-600 font-semibold">{TARGET}</span>
+        {after}
+      </>
+    );
   }
   return <>{label}</>;
 }
@@ -608,8 +638,14 @@ function AddToCalendar({ title, dateIso, details, className = "" }) {
   const ics = useMemo(() => buildICS({ title, dateIso, details }), [title, dateIso, details]);
   const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(ics)}`;
   return (
-    <a href={dataUrl} download="evento.ics"
-      className={"inline-flex items-center justify-center rounded-2xl px-4 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full " + className}>
+    <a
+      href={dataUrl}
+      download="evento.ics"
+      className={
+        "inline-flex items-center justify-center rounded-2xl px-4 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition w-full " +
+        className
+      }
+    >
       Añadir al calendario (.ics)
     </a>
   );
@@ -619,7 +655,9 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
   const [meal, setMeal] = useState(true);
   const [party, setParty] = useState(true);
   const [status, setStatus] = useState("");
+
   useEffect(() => { setName(currentName || ""); }, [currentName]);
+
   async function submit() {
     const n = String(name).trim();
     if (!n) return setStatus("Pon tu nombre ✍️");
@@ -627,16 +665,23 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
     setStatus("Guardando…");
     try {
       await supaAddOrUpdateAttendee({ name: n, meal, party });
-      setCurrentName(n); onConfirmedChange(true); setStatus("¡Confirmado!");
-    } catch { setStatus("Error al guardar"); }
+      setCurrentName(n);
+      onConfirmedChange(true);
+      setStatus("¡Confirmado!");
+    } catch {
+      setStatus("Error al guardar");
+    }
   }
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
       <label className="text-sm block mb-2">
         Tu nombre
         <input
           className="mt-1 w-full rounded-xl bg-zinc-950 border border-zinc-700 px-3 py-2 text-zinc-100"
-          value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre y apellidos"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre y apellidos"
         />
       </label>
       <div className="flex items-center gap-4 text-sm">
@@ -648,8 +693,11 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
         </label>
       </div>
       <div className="mt-3 flex gap-2">
-        <button onClick={submit}
-          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 text-red-500 hover:bg-zinc-800 active:bg-zinc-950 border border-red-600/60 shadow-sm ring-1 ring-red-400/40 transition-colors">
+        <button
+          onClick={submit}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 text-red-500 hover:text-red-400 hover:bg-zinc-800 active:bg-zinc-950 border border-red-600/60 shadow-sm ring-1 ring-red-400/40 transition-colors"
+          aria-label="Confirmar asistencia"
+        >
           Confirmar
         </button>
       </div>
@@ -661,15 +709,20 @@ function TextInput({ label, value, onChange }) {
   return (
     <label className="text-sm">
       <span className="block text-blue-200/80 mb-1">{label}</span>
-      <input className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-zinc-100"
-        value={value} onChange={(e) => onChange(e.target.value)} />
+      <input
+        className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-zinc-100"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </label>
   );
 }
 function TimeCard({ label, value }) {
   return (
     <div className="rounded-2xl bg-zinc-900/70 border border-zinc-800 p-3 sm:p-4">
-      <div className="text-2xl sm:text-3xl font-bold tabular-nums">{String(value).padStart(2, "0")}</div>
+      <div className="text-2xl sm:text-3xl font-bold tabular-nums">
+        {String(value).padStart(2, "0")}
+      </div>
       <div className="text-[11px] sm:text-xs text-zinc-400 mt-1">{label}</div>
     </div>
   );
@@ -684,18 +737,13 @@ function LockedClue({ revealAt, now }) {
   );
 }
 
-/* ======= PISTAS con intentos y solución condicional ======= */
+/* ===================
+   PISTAS / INTENTOS
+   =================== */
 function normalizeAnswer(s) {
   return String(s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ").trim().toLowerCase();
-}
-async function supaInsertAttempt({ clueId, attendee, answer, isCorrect }) {
-  return await supaFetch(`rest/v1/clue_attempts`, {
-    method: "POST",
-    body: { clue_id: clueId, attendee, answer, is_correct: !!isCorrect },
-    headers: { Prefer: "return=representation" },
-  });
 }
 function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   const [attempts, setAttempts] = useState([]);
@@ -705,8 +753,10 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
 
   const solved = attempts.some(a => a.is_correct);
   const tries = attempts.length;
+
+  // Mostrar solución: solo si acertaste, si eres admin o si la siguiente pista ya está revelada
   const showSolution =
-    !!clue.solution && (solved || tries >= maxAttempts || isAdmin || nextRevealed === true);
+    !!clue.solution && (solved || isAdmin || nextRevealed === true);
 
   useEffect(() => {
     let active = true;
@@ -722,6 +772,7 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
 
   async function submit() {
     if (!currentName) return setStatus("Introduce tu nombre arriba y confirma asistencia.");
+    if (!isConfirmed && !isAdmin) return setStatus("Debes confirmar tu asistencia para responder.");
     if (!hasSupa) return setStatus("Supabase no configurado ❌");
     if (solved || tries >= maxAttempts) return;
 
@@ -735,14 +786,20 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
       const inserted = rows?.[0];
       if (inserted) setAttempts(prev => [...prev, inserted]);
       if (isCorrect) setStatus("✅ ¡Correcto!");
-      else if (tries + 1 >= maxAttempts) setStatus("❌ Agotaste los intentos. Se muestra la solución.");
-      else setStatus("❌ Incorrecto. ¡Prueba otra vez!");
+      else if (tries + 1 >= maxAttempts) {
+        setStatus("❌ Agotaste los intentos. La solución aparecerá cuando se desbloquee la siguiente pista.");
+      } else {
+        setStatus("❌ Incorrecto. ¡Prueba otra vez!");
+      }
       setInput("");
     } catch { setStatus("Error al enviar intento"); }
   }
 
+  const inputDisabled = (!isConfirmed && !isAdmin) || solved || tries >= maxAttempts;
+
   return (
-    <div className={cx("rounded-3xl border p-4 sm:p-5", clue.revealed ? "border-emerald-700/60 bg-emerald-500/5" : "border-zinc-800 bg-zinc-900/40")}>
+    <div className={cx("rounded-3xl border p-4 sm:p-5",
+      clue.revealed ? "border-emerald-700/60 bg-emerald-500/5" : "border-zinc-800 bg-zinc-900/40")}>
       <div className="flex items-center justify-between">
         <h3 className="text-base sm:text-lg font-semibold">{clue.title}</h3>
         <span className="text-xl sm:text-2xl">✨</span>
@@ -761,18 +818,26 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
               ) : null
             ) : (
               <div className="mt-3">
+                {!isConfirmed && !isAdmin && (
+                  <div className="mb-2 text-xs text-yellow-300">
+                    Debes confirmar tu asistencia para enviar respuestas.
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <input
                     className="flex-1 rounded-xl bg-zinc-950 border border-zinc-700 px-3 py-2 text-zinc-100"
                     placeholder="Tu respuesta…"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    disabled={solved || tries >= maxAttempts}
+                    disabled={inputDisabled}
                   />
                   <button
                     onClick={submit}
-                    disabled={!input || solved || tries >= maxAttempts}
-                    className={cx("px-3 py-2 rounded-xl text-sm font-semibold transition", "bg-white text-black hover:bg-zinc-200 disabled:opacity-50")}
+                    disabled={!input || inputDisabled}
+                    className={cx(
+                      "px-3 py-2 rounded-xl text-sm font-semibold transition",
+                      "bg-white text-black hover:bg-zinc-200 disabled:opacity-50"
+                    )}
                   >
                     Enviar
                   </button>
@@ -792,9 +857,12 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   );
 }
 
-/* ======= Admin ======= */
+/* ===================
+   ADMIN
+   =================== */
 function AdminPanelClues({ clues, setClues }) {
   const [status, setStatus] = useState("");
+
   async function addClue() {
     if (!hasSupa) return setStatus("Supabase no configurado ❌");
     const draft = { title: "Nueva pista", body: "Texto…", solution: "", revealAt: new Date().toISOString() };
@@ -810,7 +878,8 @@ function AdminPanelClues({ clues, setClues }) {
   async function updateClue(idx, field, value) {
     const next = clues.slice();
     const row = { ...next[idx], [field]: value };
-    next[idx] = row; setClues(next);
+    next[idx] = row;
+    setClues(next);
     try {
       if (hasSupa && row.id) {
         await supaUpdateClue(row.id, { title: row.title, body: row.body, revealAt: row.revealAt, solution: row.solution || "" });
@@ -827,6 +896,7 @@ function AdminPanelClues({ clues, setClues }) {
       setStatus("Pista eliminada ✅");
     } catch { setStatus("Error al eliminar pista"); }
   }
+
   return (
     <div className="mt-6 rounded-2xl border border-blue-800 bg-blue-500/10 p-4 text-blue-100">
       <p className="font-semibold">🧩 Pistas</p>
@@ -887,6 +957,7 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
     galleryOpensAt: settings?.galleryOpensAt || "",
   }));
   const [status, setStatus] = useState("");
+
   useEffect(() => {
     setForm({
       title: settings?.title || "",
@@ -898,7 +969,9 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
       galleryOpensAt: settings?.galleryOpensAt || "",
     });
   }, [settings]);
+
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
+
   async function save() {
     if (!hasSupa) return setStatus("Supabase no configurado ❌");
     setStatus("Guardando…");
@@ -907,8 +980,11 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
       setSettings({ ...form });
       setStatus("Ajustes guardados ✅");
       onSaved?.();
-    } catch { setStatus("Error al guardar ajustes"); }
+    } catch {
+      setStatus("Error al guardar ajustes");
+    }
   }
+
   return (
     <div className="rounded-2xl border border-blue-800 bg-blue-500/10 p-4 text-blue-100">
       <p className="font-semibold">🛠️ Panel de administración — Ajustes</p>
@@ -948,16 +1024,84 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
   );
 }
 
-/* ======= Bloque secreto reducido con fallback ======= */
+/* ===================
+   ASISTENTES (tabla)
+   =================== */
+function AttendeesAdmin() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function refresh() {
+    if (!hasSupa) return setError("Supabase no configurado ❌");
+    setLoading(true);
+    setError("");
+    try {
+      const data = await supaListAttendees();
+      setRows(data || []);
+    } catch { setError("No se pudo obtener la lista"); }
+    setLoading(false);
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  return (
+    <div className="mt-6 rounded-2xl border border-fuchsia-800 bg-fuchsia-500/10 p-4">
+      <div className="flex items-center justify-between">
+        <p className="font-semibold">👥 Asistentes</p>
+        <button onClick={refresh} className="text-sm px-3 py-1 rounded-lg bg-white text-black">Refrescar</button>
+      </div>
+      {error && <p className="text-sm text-red-300 mt-2">{error}</p>}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-zinc-300">
+            <tr>
+              <th className="py-1 pr-3">Nombre</th>
+              <th className="py-1 pr-3">Comida</th>
+              <th className="py-1 pr-3">Fiesta</th>
+              <th className="py-1 pr-3">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && !loading && (
+              <tr>
+                <td colSpan={4} className="py-2 text-zinc-400">Sin asistentes aún</td>
+              </tr>
+            )}
+            {rows.map((r, i) => (
+              <tr key={i} className="border-t border-zinc-800">
+                <td className="py-1 pr-3">{r.name}</td>
+                <td className="py-1 pr-3">{r.meal ? "✅" : "—"}</td>
+                <td className="py-1 pr-3">{r.party ? "✅" : "—"}</td>
+                <td className="py-1 pr-3">
+                  {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ===================
+   BLOQUE SECRETO
+   =================== */
 function SecretBlock({ imageUrl }) {
   const [ok, setOk] = useState(true);
   return (
     <div className="p-3 sm:p-4 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-600 text-fuchsia-300 text-center">
-      <p className="font-semibold text-lg mb-3">Os espero a partir de las 17:00 de la tarde en...</p>
+      <p className="font-semibold text-lg mb-3">
+        Os espero a partir de las 17:00 de la tarde en...
+      </p>
       <div className="mx-auto max-w-md sm:max-w-lg">
         {ok && imageUrl ? (
           <img
-            src={imageUrl} alt="Ubicación secreta" loading="lazy" onError={() => setOk(false)}
+            src={imageUrl}
+            alt="Ubicación secreta"
+            loading="lazy"
+            onError={() => setOk(false)}
             className="mx-auto rounded-2xl border border-fuchsia-600 h-40 sm:h-56 md:h-64 w-auto object-contain bg-black/40"
           />
         ) : (
@@ -970,13 +1114,19 @@ function SecretBlock({ imageUrl }) {
   );
 }
 
-/* ===== LEADERBOARD: sección de clasificación (sin cambios de lógica) ===== */
+/* ===================
+   CLASIFICACIÓN (con Pista # y filtro por “siguiente revelada”)
+   =================== */
 function LeaderboardSection() {
-  const [rows, setRows] = useState([]);
-  const [byUser, setByUser] = useState({});
-  const [table, setTable] = useState([]);
+  const [rows, setRows] = useState([]);      // intentos visibles (filtrados)
+  const [byUser, setByUser] = useState({});  // agrupado por usuario
+  const [table, setTable] = useState([]);    // ranking
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [clueIndexMap, setClueIndexMap] = useState({});   // id -> nº pista
+  const [nextRevealedMap, setNextRevealedMap] = useState({}); // id -> bool
+  const now = useNow(1000);
+  const isAdmin = getAdminFlagFromUrl();
 
   useEffect(() => {
     let active = true;
@@ -984,16 +1134,38 @@ function LeaderboardSection() {
       if (!hasSupa) return setErr("Supabase no configurado ❌");
       setLoading(true); setErr("");
       try {
-        const data = await supaListAllAttempts();
+        const [attempts, clues] = await Promise.all([
+          supaListAllAttempts(),
+          supaListClues(),
+        ]);
         if (!active) return;
-        setRows(Array.isArray(data) ? data : []);
+
+        const ordered = (Array.isArray(clues) ? clues : [])
+          .slice()
+          .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
+
+        const idxMap = {};
+        ordered.forEach((c, i) => { idxMap[c.id] = i + 1; });
+        setClueIndexMap(idxMap);
+
+        const nextMap = {};
+        ordered.forEach((c, i) => {
+          const next = ordered[i + 1];
+          if (!next) nextMap[c.id] = false; // última pista (no visible salvo admin)
+          else nextMap[c.id] = new Date(now) >= new Date(next.revealAt);
+        });
+        setNextRevealedMap(nextMap);
+
+        const baseRows = Array.isArray(attempts) ? attempts : [];
+        const filtered = isAdmin ? baseRows : baseRows.filter(a => nextMap[a.clue_id] === true);
+        setRows(filtered);
       } catch {
         if (active) setErr("No se pudieron cargar intentos");
       }
       setLoading(false);
     })();
     return () => { active = false; };
-  }, []);
+  }, [now, isAdmin]);
 
   useEffect(() => {
     const map = new Map();
@@ -1002,9 +1174,10 @@ function LeaderboardSection() {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(a);
     }
-    const obj = Object.fromEntries([...map.entries()].map(([k,v]) => [k, v]));
+    const obj = Object.fromEntries([...map.entries()].map(([k, v]) => [k, v]));
     setByUser(obj);
 
+    // Ranking: puntos = aciertos × 100 − fallos
     const scoreRows = Object.entries(obj).map(([user, attempts]) => {
       const byClue = new Map();
       attempts.forEach(at => {
@@ -1028,7 +1201,6 @@ function LeaderboardSection() {
       if (b.solved !== a.solved) return b.solved - a.solved;
       return a.fails - b.fails;
     });
-
     setTable(scoreRows);
   }, [rows]);
 
@@ -1077,15 +1249,23 @@ function LeaderboardSection() {
       {!loading && Object.keys(byUser).length > 0 && (
         <div className="mt-4 space-y-3">
           {Object.entries(byUser).map(([user, list]) => (
-            <UserAttemptsCard key={user} user={user} attempts={list} />
+            <UserAttemptsCard
+              key={user}
+              user={user}
+              attempts={list}
+              clueIndexMap={clueIndexMap}
+              nextRevealedMap={nextRevealedMap}
+              isAdmin={isAdmin}
+            />
           ))}
         </div>
       )}
     </section>
   );
 }
-function UserAttemptsCard({ user, attempts }) {
-  const rows = [...attempts].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+function UserAttemptsCard({ user, attempts, clueIndexMap, nextRevealedMap, isAdmin }) {
+  const visible = isAdmin ? attempts : attempts.filter(a => nextRevealedMap?.[a.clue_id] === true);
+  const rows = [...visible].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
       <div className="flex items-center justify-between">
@@ -1097,20 +1277,23 @@ function UserAttemptsCard({ user, attempts }) {
           <thead className="text-left text-zinc-400">
             <tr>
               <th className="py-1 pr-3">Fecha</th>
-              <th className="py-1 pr-3">Pista (ID)</th>
+              <th className="py-1 pr-3">Pista #</th>
               <th className="py-1 pr-3">Respuesta</th>
               <th className="py-1 pr-3">OK</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-t border-zinc-800">
-                <td className="py-1 pr-3">{fmt(r.created_at)}</td>
-                <td className="py-1 pr-3">{r.clue_id}</td>
-                <td className="py-1 pr-3 whitespace-pre-wrap break-words">{r.answer}</td>
-                <td className="py-1 pr-3">{r.is_correct ? "✅" : "—"}</td>
-              </tr>
-            ))}
+            {rows.map((r, i) => {
+              const num = clueIndexMap?.[r.clue_id];
+              return (
+                <tr key={i} className="border-t border-zinc-800">
+                  <td className="py-1 pr-3">{fmt(r.created_at)}</td>
+                  <td className="py-1 pr-3">{num ? `#${num}` : "—"}</td>
+                  <td className="py-1 pr-3 whitespace-pre-wrap break-words">{r.answer}</td>
+                  <td className="py-1 pr-3">{r.is_correct ? "✅" : "—"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
