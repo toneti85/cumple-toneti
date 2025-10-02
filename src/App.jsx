@@ -51,6 +51,60 @@ async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
 const toIsoT = (s) => (typeof s === "string" && !s.includes("T") ? s.replace(" ", "T") : s);
 const fmt = (d) => new Date(d).toLocaleString();
 
+// Quita acentos/espacios repetidos y pasa a minúsculas
+function normalizeName(s = "") {
+  return String(s)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Levenshtein clásico (iterativo)
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(
+        dp[j] + 1,                 // del
+        dp[j - 1] + 1,             // ins
+        prev + (a[i - 1] === b[j - 1] ? 0 : 1) // sub
+      );
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Similaridad 0..1 basada en Levenshtein
+function nameSimilarity(a, b) {
+  const A = normalizeName(a), B = normalizeName(b);
+  if (!A && !B) return 1;
+  const d = levenshtein(A, B);
+  const L = Math.max(A.length, B.length) || 1;
+  return 1 - d / L;
+}
+
+// Busca mejor coincidencia en una lista de asistentes
+function findBestNameMatch(inputName, attendees = []) {
+  const inNorm = normalizeName(inputName);
+  let best = { name: null, score: 0 };
+  for (const row of attendees) {
+    const candidate = row?.name ?? "";
+    const score = nameSimilarity(inNorm, candidate);
+    if (score > best.score) best = { name: candidate, score };
+  }
+  return best; // { name: "Juan Pérez", score: 0.xx }
+}
+
+
 function useNow(tickMs = 1000) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -656,22 +710,53 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
   const [meal, setMeal] = useState(true);
   const [party, setParty] = useState(true);
   const [status, setStatus] = useState("");
+  const [suggestion, setSuggestion] = useState(null); // {name, score} si hay duda 0.85–0.93
 
   useEffect(() => { setName(currentName || ""); }, [currentName]);
+
+  async function submitWithName(finalName) {
+    setStatus("Guardando…");
+    try {
+      await supaAddOrUpdateAttendee({ name: finalName, meal, party });
+      setCurrentName(finalName);
+      onConfirmedChange(true);
+      setStatus(`¡Confirmado como "${finalName}"!`);
+      setSuggestion(null);
+    } catch {
+      setStatus("Error al guardar");
+    }
+  }
 
   async function submit() {
     const n = String(name).trim();
     if (!n) return setStatus("Pon tu nombre ✍️");
     if (!hasSupa) return setStatus("Supabase no configurado ❌");
-    setStatus("Guardando…");
-    try {
-      await supaAddOrUpdateAttendee({ name: n, meal, party });
-      setCurrentName(n);
-      onConfirmedChange(true);
-      setStatus("¡Confirmado!");
-    } catch {
-      setStatus("Error al guardar");
+
+    // 1) Traemos todos los asistentes actuales
+    let attendees = [];
+    try { attendees = await supaListAttendees(); } catch { /* ignore */ }
+
+    // 2) Buscamos el mejor parecido
+    const { name: bestName, score } = findBestNameMatch(n, attendees);
+    const eqNormalized = normalizeName(n) === normalizeName(bestName || "");
+
+    // 3) Reglas de decisión
+    if (bestName && (eqNormalized || score >= 0.93)) {
+      // Muy parecido → lo damos por el mismo usuario y usamos el nombre existente
+      setStatus(`Hemos encontrado "${bestName}". Unimos tu confirmación a ese nombre.`);
+      await submitWithName(bestName);
+      return;
     }
+
+    if (bestName && score >= 0.85) {
+      // Parecido razonable → pedimos confirmación en UI
+      setSuggestion({ name: bestName, score });
+      setStatus(`¿Querías decir "${bestName}"? (parecido ${(score*100).toFixed(0)}%)`);
+      return;
+    }
+
+    // No parecido → crear entrada nueva con lo que escribió
+    await submitWithName(n);
   }
 
   return (
@@ -681,7 +766,7 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
         <input
           className="mt-1 w-full rounded-xl bg-zinc-950 border border-zinc-700 px-3 py-2 text-zinc-100"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setSuggestion(null); }}
           placeholder="Nombre y apellidos"
         />
       </label>
@@ -693,6 +778,31 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
           <input type="checkbox" checked={party} onChange={(e) => setParty(e.target.checked)} /> Fiesta
         </label>
       </div>
+
+      {/* Sugerencia de posible duplicado */}
+      {suggestion && (
+        <div className="mt-3 rounded-xl border border-yellow-700 bg-yellow-500/10 p-3 text-yellow-200 text-sm">
+          <div className="mb-2">
+            Hemos encontrado un nombre muy parecido: <b>{suggestion.name}</b>.
+            ¿Quieres usarlo para evitar duplicados?
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => submitWithName(suggestion.name)}
+              className="px-3 py-2 rounded-lg bg-white text-black text-sm"
+            >
+              Usar “{suggestion.name}”
+            </button>
+            <button
+              onClick={() => { setSuggestion(null); submitWithName(name); }}
+              className="px-3 py-2 rounded-lg bg-zinc-800 text-sm"
+            >
+              Crear nuevo “{name}”
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 flex gap-2">
         <button
           onClick={submit}
@@ -701,12 +811,12 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
         >
           Confirmar
         </button>
-
       </div>
       <div className="mt-2 text-xs text-zinc-400">{status}</div>
     </div>
   );
 }
+
 function TextInput({ label, value, onChange }) {
   return (
     <label className="text-sm">
