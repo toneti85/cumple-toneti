@@ -106,11 +106,11 @@ function buildICS({ title, dateIso, details = "" }) {
   const endUtc = toUTC(new Date(dt.getTime() + 3 * 60 * 60 * 1000));
   const esc = (s) => String(s).replaceAll(/([,;])/g, "\\$1").replaceAll("\n", "\\n");
   return [
-    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Cumple//ES","BEGIN:VEVENT",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Cumple//ES", "BEGIN:VEVENT",
     `UID:${Math.random().toString(16).slice(2)}`,
-    `DTSTAMP:${startUtc}`,`DTSTART:${startUtc}`,`DTEND:${endUtc}`,
-    `SUMMARY:${esc(title)}`,`DESCRIPTION:${esc(details)}`,
-    "END:VEVENT","END:VCALENDAR",
+    `DTSTAMP:${startUtc}`, `DTSTART:${startUtc}`, `DTEND:${endUtc}`,
+    `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(details)}`,
+    "END:VEVENT", "END:VCALENDAR",
   ].join("\n");
 }
 function buildQrUrl(data, size = 320) {
@@ -330,7 +330,6 @@ export default function App() {
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2">
           <a href="#/" className="font-bold hover:text-red-400">🎉 Cumple</a>
           <nav className="flex items-center gap-2 text-sm">
-            <a href="#/" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Inicio</a>
             <a href="#/clasificacion" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Clasificación</a>
             <a href="#/confirmados" className="px-3 py-1 rounded-lg hover:text-red-400 hover:bg-zinc-800">Confirmados</a>
           </nav>
@@ -338,8 +337,8 @@ export default function App() {
       </header>
 
       {route === "/clasificacion" ? <LeaderboardPage /> :
-       route === "/confirmados"   ? <ConfirmedPage />   :
-                                    <HomePage />}
+        route === "/confirmados" ? <ConfirmedPage /> :
+          <HomePage />}
 
       <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-10 text-center text-zinc-500 text-xs sm:text-sm">
         Hecho con ❤️ por Toneti · {new Date().getFullYear()}
@@ -697,11 +696,12 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
       <div className="mt-3 flex gap-2">
         <button
           onClick={submit}
-          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 hover:text-red-400 hover:bg-zinc-800 active:bg-zinc-950 border border-red-600/60 shadow-sm ring-1 ring-red-400/40 transition-colors"
+          className="confirmar px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 shadow-sm transition-colors"
           aria-label="Confirmar asistencia"
         >
           Confirmar
         </button>
+
       </div>
       <div className="mt-2 text-xs text-zinc-400">{status}</div>
     </div>
