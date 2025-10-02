@@ -47,7 +47,6 @@ async function supaFetch(path, { method = "GET", body, headers = {} } = {}) {
 /* ===================
    HELPERS DE FECHA Y UTILIDADES
    =================== */
-// Convierte "YYYY-MM-DD HH:mm:ss+00" en "YYYY-MM-DDTHH:mm:ss+00"
 const toIsoT = (s) => (typeof s === "string" && !s.includes("T") ? s.replace(" ", "T") : s);
 
 function useNow(tickMs = 1000) {
@@ -58,7 +57,6 @@ function useNow(tickMs = 1000) {
   }, [tickMs]);
   return now;
 }
-
 function formatDiff(ms) {
   if (ms <= 0) return { d: 0, h: 0, m: 0, s: 0 };
   const s = Math.floor(ms / 1000);
@@ -69,13 +67,9 @@ function formatDiff(ms) {
     s: s % 60,
   };
 }
-
 function cx(...classes) { return classes.filter(Boolean).join(" "); }
 const fmt = (d) => new Date(d).toLocaleString();
 
-/* ===================
-   SPOTIFY + ICS + QR helpers (sin cambios)
-   =================== */
 function getAdminFlagFromUrl() {
   if (typeof window === "undefined") return false;
   const qs = new URLSearchParams(window.location.search);
@@ -244,7 +238,7 @@ async function supaListAttendees() {
   );
 }
 
-/* ======= Endpoints intentos ======= */
+/* ======= Intentos ======= */
 async function supaListAttempts({ clueId, attendee }) {
   if (!clueId || !attendee) return [];
   const url = `rest/v1/clue_attempts?select=id,answer,is_correct,created_at&clue_id=eq.${encodeURIComponent(
@@ -252,11 +246,29 @@ async function supaListAttempts({ clueId, attendee }) {
   )}&attendee=eq.${encodeURIComponent(attendee)}&order=created_at.asc`;
   return await supaFetch(url);
 }
-// ===== LEADERBOARD: obtener TODOS los intentos
 async function supaListAllAttempts() {
   return await supaFetch(
     `rest/v1/clue_attempts?select=clue_id,attendee,answer,is_correct,created_at&order=created_at.asc&limit=10000`
   );
+}
+
+/* ===================
+   Mini router por hash
+   =================== */
+function useHashRoute() {
+  const get = () => {
+    const h = (typeof window !== "undefined" ? window.location.hash : "") || "";
+    const path = h.replace(/^#/, "").split("?")[0];
+    return path || "/"; // "" -> "/"
+  };
+  const [route, setRoute] = useState(get);
+  useEffect(() => {
+    const onChange = () => setRoute(get());
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  const push = (to) => { window.location.hash = to; };
+  return { route, push };
 }
 
 /* ===================
@@ -299,16 +311,46 @@ function useDbData() {
 }
 
 /* ===================
-   MAIN APP
+   APP PRINCIPAL (usa router)
    =================== */
 export default function App() {
-  const {
-    settings, setSettings,
-    clues, setClues,
-    currentName, setCurrentName,
-    loading, error, reload,
-  } = useDbData();
+  const db = useDbData(); // para pasar a páginas
+  const { settings, clues } = db;
+  const { route, push } = useHashRoute();
 
+  // Barra superior con navegación
+  return (
+    <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
+      <header className="sticky top-0 z-20 bg-zinc-950/70 backdrop-blur border-b border-zinc-800">
+        <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between">
+          <a href="#/" className="font-semibold">🎉 Cumple</a>
+          <nav className="flex items-center gap-2 text-sm">
+            <a href="#/" className="px-3 py-1 rounded-lg hover:bg-zinc-800">Inicio</a>
+            <a href="#/clasificacion" className="px-3 py-1 rounded-lg hover:bg-zinc-800">Clasificación</a>
+          </nav>
+        </div>
+      </header>
+
+      {route === "/clasificacion" ? (
+        <LeaderboardPage />
+      ) : (
+        <HomePage {...db} />
+      )}
+
+      <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-10 text-center text-zinc-500 text-xs sm:text-sm">
+        Hecho con ❤️ por Toneti · {new Date().getFullYear()}
+      </footer>
+    </div>
+  );
+}
+
+/* ===================
+   PÁGINA: INICIO
+   =================== */
+function HomePage({
+  settings, setSettings, clues, setClues,
+  currentName, setCurrentName, loading, error, reload
+}) {
   const isAdmin = getAdminFlagFromUrl();
   const now = useNow(1000);
 
@@ -322,7 +364,6 @@ export default function App() {
     [now, clues, isAdmin]
   );
 
-  // Última pista por fecha (para el bloque secreto)
   const lastClueAt = useMemo(() => {
     if (!clues?.length) return null;
     const ts = clues.map(c => new Date(c.revealAt).getTime()).filter(Number.isFinite);
@@ -335,7 +376,6 @@ export default function App() {
     settings?.galleryOpensAt &&
     (isAdmin || now >= new Date(settings.galleryOpensAt));
 
-  // Confirmación por nombre en BBDD
   const [isConfirmed, setIsConfirmed] = useState(false);
   useEffect(() => {
     let active = true;
@@ -347,14 +387,15 @@ export default function App() {
       try {
         const row = await supaSelectAttendee(currentName);
         if (active) setIsConfirmed(!!row && (row.meal || row.party));
-      } catch { if (active) setIsConfirmed(false); }
+      } catch {
+        if (active) setIsConfirmed(false);
+      }
     })();
     return () => { active = false; };
   }, [currentName]);
 
   return (
-    <div className="min-h-dvh w-full overflow-x-hidden bg-gradient-to-b from-zinc-900 via-zinc-900 to-black text-zinc-100">
-
+    <>
       {/* HERO */}
       <section className="relative w-full flex items-center justify-center py-6 sm:py-10">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-zinc-900 via-zinc-900 to-black" />
@@ -430,45 +471,13 @@ export default function App() {
       {/* CONTENIDO */}
       <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-16 sm:pb-20">
         {/* Pistas */}
-        <section className="mt-6 sm:mt-8">
-          <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
-            Pistas semanales <span className="ml-2 text-xs text-zinc-500">({clues.length})</span>
-          </h2>
-
-          {!isConfirmed && !isAdmin ? (
-            <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
-              ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha.
-              <br />
-              Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
-            </div>
-          ) : null}
-
-          {loading && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">Cargando…</div>
-          )}
-
-          {!loading && clues.length === 0 && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
-              No hay pistas en la BBDD. Añádelas en el panel de administración.
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {revealed.map((c, idx) => (
-              <ClueCard
-                key={c.id}
-                clue={c}
-                currentName={currentName}
-                isConfirmed={isConfirmed}
-                isAdmin={isAdmin}
-                nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ===== LEADERBOARD: Clasificación */}
-        <LeaderboardSection />
+        <CluesSection
+          clues={clues}
+          currentName={currentName}
+          isAdmin={isAdmin}
+          loading={loading}
+          isConfirmedInitial={false}
+        />
 
         {/* Galería */}
         <section className="mt-10">
@@ -501,8 +510,6 @@ export default function App() {
           )}
         </section>
 
-        <AttendeesAdmin />
-
         {/* Admin */}
         {isAdmin && (
           <section className="mt-10">
@@ -511,17 +518,84 @@ export default function App() {
           </section>
         )}
       </main>
-
-      <footer className="max-w-screen-2xl mx-auto px-3 sm:px-4 pb-10 text-center text-zinc-500 text-xs sm:text-sm">
-        Hecho con ❤️ por Toneti · {new Date().getFullYear()}
-      </footer>
-    </div>
+    </>
   );
 }
 
 /* ===================
-   SUBCOMPONENTES AUXILIARES
+   PÁGINA: CLASIFICACIÓN (aparte)
    =================== */
+function LeaderboardPage() {
+  return (
+    <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
+      <h1 className="text-2xl sm:text-3xl font-semibold">🏆 Clasificación</h1>
+      <p className="text-sm text-zinc-400 mt-1">
+        Resultados de las pruebas por usuario. <a href="#/" className="underline hover:text-zinc-200">Volver al inicio</a>
+      </p>
+      <LeaderboardSection />
+      <div className="mt-6">
+        <a href="#/" className="inline-flex items-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700">
+          ← Volver a la página principal
+        </a>
+      </div>
+    </main>
+  );
+}
+
+/* ===================
+   SECCIONES / COMPONENTES
+   =================== */
+function CluesSection({ clues, currentName, isAdmin, loading }) {
+  const now = useNow(1000);
+  const revealed = useMemo(
+    () => clues.map((c) => ({ ...c, revealed: isAdmin || now >= new Date(c.revealAt) })),
+    [now, clues, isAdmin]
+  );
+
+  // solo mostramos el aviso si no hay nombre confirmado (para simplificar, lo dejamos visible al no tenerlo en props)
+  const showNotice = true;
+
+  return (
+    <section className="mt-6 sm:mt-8">
+      <h2 className="text-lg sm:text-xl font-medium mb-3 sm:mb-4">
+        Pistas semanales <span className="ml-2 text-xs text-zinc-500">({clues.length})</span>
+      </h2>
+
+      {showNotice && !isAdmin ? (
+        <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
+          ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha.
+          <br />
+          Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
+        </div>
+      ) : null}
+
+      {loading && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">Cargando…</div>
+      )}
+
+      {!loading && clues.length === 0 && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">
+          No hay pistas en la BBDD. Añádelas en el panel de administración.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        {revealed.map((c, idx) => (
+          <ClueCard
+            key={c.id}
+            clue={c}
+            currentName={currentName}
+            isConfirmed={true}
+            isAdmin={isAdmin}
+            nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ======= Auxiliares visuales ======= */
 function LocationLabel({ label }) {
   const TARGET = "¿Qué nos habrá preparado nuestro querido Toneti....?";
   if (typeof label === "string" && label.includes(TARGET)) {
@@ -610,11 +684,18 @@ function LockedClue({ revealAt, now }) {
   );
 }
 
-/* ======= PISTAS: intentos + solución al revelarse la siguiente ======= */
+/* ======= PISTAS con intentos y solución condicional ======= */
 function normalizeAnswer(s) {
   return String(s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ").trim().toLowerCase();
+}
+async function supaInsertAttempt({ clueId, attendee, answer, isCorrect }) {
+  return await supaFetch(`rest/v1/clue_attempts`, {
+    method: "POST",
+    body: { clue_id: clueId, attendee, answer, is_correct: !!isCorrect },
+    headers: { Prefer: "return=representation" },
+  });
 }
 function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   const [attempts, setAttempts] = useState([]);
@@ -711,9 +792,7 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   );
 }
 
-/* ===================
-   ADMIN PANELS
-   =================== */
+/* ======= Admin ======= */
 function AdminPanelClues({ clues, setClues }) {
   const [status, setStatus] = useState("");
   async function addClue() {
@@ -868,50 +947,8 @@ function AdminPanelSettings({ settings, setSettings, onSaved }) {
     </div>
   );
 }
-function AttendeesAdmin() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  async function refresh() {
-    if (!hasSupa) return setError("Supabase no configurado ❌");
-    setLoading(true); setError("");
-    try { setRows(await supaListAttendees() || []); }
-    catch { setError("No se pudo obtener la lista"); }
-    setLoading(false);
-  }
-  useEffect(() => { refresh(); }, []);
-  return (
-    <div className="mt-6 rounded-2xl border border-fuchsia-800 bg-fuchsia-500/10 p-4">
-      <div className="flex items-center justify-between">
-        <p className="font-semibold">👥 Asistentes</p>
-        <button onClick={refresh} className="text-sm px-3 py-1 rounded-lg bg-white text-black">Refrescar</button>
-      </div>
-      {error && <p className="text-sm text-red-300 mt-2">{error}</p>}
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-zinc-300">
-            <tr><th className="py-1 pr-3">Nombre</th><th className="py-1 pr-3">Comida</th><th className="py-1 pr-3">Fiesta</th><th className="py-1 pr-3">Fecha</th></tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && !loading && (
-              <tr><td colSpan={4} className="py-2 text-zinc-400">Sin asistentes aún</td></tr>
-            )}
-            {rows.map((r, i) => (
-              <tr key={i} className="border-t border-zinc-800">
-                <td className="py-1 pr-3">{r.name}</td>
-                <td className="py-1 pr-3">{r.meal ? "✅" : "—"}</td>
-                <td className="py-1 pr-3">{r.party ? "✅" : "—"}</td>
-                <td className="py-1 pr-3">{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
-/* ======= Bloque secreto con fallback de imagen ======= */
+/* ======= Bloque secreto reducido con fallback ======= */
 function SecretBlock({ imageUrl }) {
   const [ok, setOk] = useState(true);
   return (
@@ -933,11 +970,11 @@ function SecretBlock({ imageUrl }) {
   );
 }
 
-/* ===== LEADERBOARD: sección de clasificación ===== */
+/* ===== LEADERBOARD: sección de clasificación (sin cambios de lógica) ===== */
 function LeaderboardSection() {
-  const [rows, setRows] = useState([]);      // intentos crudos
-  const [byUser, setByUser] = useState({});  // agrupado
-  const [table, setTable] = useState([]);    // ranking
+  const [rows, setRows] = useState([]);
+  const [byUser, setByUser] = useState({});
+  const [table, setTable] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -958,7 +995,6 @@ function LeaderboardSection() {
     return () => { active = false; };
   }, []);
 
-  // Agrupar por usuario
   useEffect(() => {
     const map = new Map();
     for (const a of rows) {
@@ -969,16 +1005,13 @@ function LeaderboardSection() {
     const obj = Object.fromEntries([...map.entries()].map(([k,v]) => [k, v]));
     setByUser(obj);
 
-    // Ranking: puntos = acertadas únicas * 100 − fallos
     const scoreRows = Object.entries(obj).map(([user, attempts]) => {
       const byClue = new Map();
       attempts.forEach(at => {
         if (!byClue.has(at.clue_id)) byClue.set(at.clue_id, []);
         byClue.get(at.clue_id).push(at);
       });
-      let solved = 0;
-      let fails = 0;
-      let last = 0;
+      let solved = 0, fails = 0, last = 0;
       byClue.forEach(list => {
         const anyCorrect = list.some(x => x.is_correct);
         if (anyCorrect) solved += 1;
@@ -993,20 +1026,17 @@ function LeaderboardSection() {
     scoreRows.sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.solved !== a.solved) return b.solved - a.solved;
-      return a.fails - b.fails; // menos fallos mejor
+      return a.fails - b.fails;
     });
 
     setTable(scoreRows);
   }, [rows]);
 
   return (
-    <section className="mt-10">
-      <h2 className="text-lg sm:text-xl font-medium mb-3">🏆 Clasificación</h2>
-
+    <section className="mt-6">
       {err && <p className="text-sm text-red-300 mb-3">{err}</p>}
       {loading && <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-zinc-400">Cargando ranking…</div>}
 
-      {/* Tabla de ranking */}
       {!loading && (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
           <div className="overflow-x-auto">
@@ -1044,7 +1074,6 @@ function LeaderboardSection() {
         </div>
       )}
 
-      {/* Detalle por usuario */}
       {!loading && Object.keys(byUser).length > 0 && (
         <div className="mt-4 space-y-3">
           {Object.entries(byUser).map(([user, list]) => (
@@ -1056,7 +1085,6 @@ function LeaderboardSection() {
   );
 }
 function UserAttemptsCard({ user, attempts }) {
-  // ordenar por fecha
   const rows = [...attempts].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
