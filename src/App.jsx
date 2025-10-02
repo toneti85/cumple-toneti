@@ -253,7 +253,7 @@ async function supaListAttendees() {
   );
 }
 
-/* ======= NUEVO: Endpoints de intentos ======= */
+/* ======= Endpoints intentos ======= */
 async function supaListAttempts({ clueId, attendee }) {
   if (!clueId || !attendee) return [];
   const url = `rest/v1/clue_attempts?select=id,answer,is_correct,created_at&clue_id=eq.${encodeURIComponent(
@@ -346,7 +346,7 @@ export default function App() {
     [now, clues, isAdmin]
   );
 
-  // NUEVO: última pista por fecha y si ya está revelada
+  // Última pista por fecha (para el bloque secreto)
   const lastClueAt = useMemo(() => {
     if (!clues?.length) return null;
     const ts = clues.map(c => new Date(c.revealAt).getTime()).filter(Number.isFinite);
@@ -480,8 +480,6 @@ export default function App() {
             <div className="rounded-2xl border border-yellow-700 bg-yellow-500/10 p-4 text-yellow-200">
               ¿Quieres saber la sorpresa final? Es fácil: escribe tu nombre arriba, dale a “Confirmar” y espera a que las pistas salgan del horno en su fecha.
               <br />
-              Una vez ya hayas confirmado, para desbloquear las pistas sólo tienes que volver a introducir el nombre con el que confirmaste :)
-              <br />
               Bonus: a la tercera metedura de pata… ¡pista desbloqueada automáticamente! ;)
             </div>
           ) : null}
@@ -499,13 +497,15 @@ export default function App() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {revealed.map((c) => (
+            {revealed.map((c, idx) => (
               <ClueCard
                 key={c.id}
                 clue={c}
                 currentName={currentName}
                 isConfirmed={isConfirmed}
                 isAdmin={isAdmin}
+                // 👇 NUEVO: saber si la pista siguiente ya está revelada
+                nextRevealed={Boolean(revealed[idx + 1]?.revealed)}
               />
             ))}
           </div>
@@ -694,7 +694,7 @@ function LockedClue({ revealAt, now }) {
   );
 }
 
-/* ======= NUEVO: Componente de pista con intentos ======= */
+/* ======= PISTAS: intentos + solución al revelarse la siguiente ======= */
 function normalizeAnswer(s) {
   return String(s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // quita acentos
@@ -702,7 +702,7 @@ function normalizeAnswer(s) {
     .trim()
     .toLowerCase();
 }
-function ClueCard({ clue, currentName, isConfirmed, isAdmin }) {
+function ClueCard({ clue, currentName, isConfirmed, isAdmin, nextRevealed }) {
   const [attempts, setAttempts] = useState([]);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
@@ -710,7 +710,15 @@ function ClueCard({ clue, currentName, isConfirmed, isAdmin }) {
 
   const solved = attempts.some(a => a.is_correct);
   const tries = attempts.length;
-  const showSolution = !!clue.solution && (solved || tries >= maxAttempts || isAdmin);
+
+  // 👇 NUEVO: mostrar solución si la siguiente pista ya está revelada
+  const showSolution =
+    !!clue.solution && (
+      solved ||
+      tries >= maxAttempts ||
+      isAdmin ||
+      nextRevealed === true
+    );
 
   useEffect(() => {
     let active = true;
@@ -1017,7 +1025,7 @@ function AttendeesAdmin() {
   );
 }
 
-/* ======= NUEVO: bloque secreto reutilizable ======= */
+/* ======= Bloque secreto ======= */
 function SecretBlock() {
   return (
     <div className="p-3 sm:p-4 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-600 text-fuchsia-300 text-center">
