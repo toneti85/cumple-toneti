@@ -570,14 +570,14 @@ function HomePage() {
 }
 
 /* ===================
-   PÁGINA: CLASIFICACIÓN
+   PÁGINA: CLASIFICACIÓN (sin respuestas visibles)
    =================== */
 function LeaderboardPage() {
   return (
     <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 py-8 pb-16">
       <h1 className="text-2xl sm:text-3xl font-semibold">🏆 Clasificación</h1>
       <p className="text-sm text-zinc-400 mt-1">
-        Resultados de las pruebas por usuario.{" "}
+        Ranking por puntos.{" "}
         <a href="#/" className="underline text-red-500 hover:text-red-400">Volver al inicio</a>
       </p>
       <LeaderboardSection />
@@ -594,7 +594,7 @@ function LeaderboardPage() {
 }
 
 /* ===================
-   PÁGINA: CONFIRMADOS (nueva)
+   PÁGINA: CONFIRMADOS
    =================== */
 function ConfirmedPage() {
   return (
@@ -1115,16 +1115,13 @@ function SecretBlock({ imageUrl }) {
 }
 
 /* ===================
-   CLASIFICACIÓN (con Pista # y filtro por “siguiente revelada”)
+   CLASIFICACIÓN (ranking sin respuestas)
    =================== */
 function LeaderboardSection() {
   const [rows, setRows] = useState([]);      // intentos visibles (filtrados)
-  const [byUser, setByUser] = useState({});  // agrupado por usuario
   const [table, setTable] = useState([]);    // ranking
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [clueIndexMap, setClueIndexMap] = useState({});   // id -> nº pista
-  const [nextRevealedMap, setNextRevealedMap] = useState({}); // id -> bool
   const now = useNow(1000);
   const isAdmin = getAdminFlagFromUrl();
 
@@ -1140,23 +1137,20 @@ function LeaderboardSection() {
         ]);
         if (!active) return;
 
+        // filtro “pistas con siguiente revelada” (para que el ranking no anticipe)
         const ordered = (Array.isArray(clues) ? clues : [])
           .slice()
           .sort((a, b) => new Date(a.revealAt) - new Date(b.revealAt));
 
-        const idxMap = {};
-        ordered.forEach((c, i) => { idxMap[c.id] = i + 1; });
-        setClueIndexMap(idxMap);
-
         const nextMap = {};
         ordered.forEach((c, i) => {
           const next = ordered[i + 1];
-          if (!next) nextMap[c.id] = false; // última pista (no visible salvo admin)
+          if (!next) nextMap[c.id] = false;
           else nextMap[c.id] = new Date(now) >= new Date(next.revealAt);
         });
-        setNextRevealedMap(nextMap);
 
         const baseRows = Array.isArray(attempts) ? attempts : [];
+        // Para el ranking podemos permitir todos, pero si quieres ser estricto:
         const filtered = isAdmin ? baseRows : baseRows.filter(a => nextMap[a.clue_id] === true);
         setRows(filtered);
       } catch {
@@ -1168,17 +1162,14 @@ function LeaderboardSection() {
   }, [now, isAdmin]);
 
   useEffect(() => {
+    // Agrupar por usuario y calcular puntos = aciertos*100 - fallos
     const map = new Map();
     for (const a of rows) {
       const key = a.attendee || "¿Sin nombre?";
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(a);
     }
-    const obj = Object.fromEntries([...map.entries()].map(([k, v]) => [k, v]));
-    setByUser(obj);
-
-    // Ranking: puntos = aciertos × 100 − fallos
-    const scoreRows = Object.entries(obj).map(([user, attempts]) => {
+    const scoreRows = [...map.entries()].map(([user, attempts]) => {
       const byClue = new Map();
       attempts.forEach(at => {
         if (!byClue.has(at.clue_id)) byClue.set(at.clue_id, []);
@@ -1246,57 +1237,7 @@ function LeaderboardSection() {
         </div>
       )}
 
-      {!loading && Object.keys(byUser).length > 0 && (
-        <div className="mt-4 space-y-3">
-          {Object.entries(byUser).map(([user, list]) => (
-            <UserAttemptsCard
-              key={user}
-              user={user}
-              attempts={list}
-              clueIndexMap={clueIndexMap}
-              nextRevealedMap={nextRevealedMap}
-              isAdmin={isAdmin}
-            />
-          ))}
-        </div>
-      )}
+      {/* OJO: ya no mostramos las respuestas por usuario */}
     </section>
-  );
-}
-function UserAttemptsCard({ user, attempts, clueIndexMap, nextRevealedMap, isAdmin }) {
-  const visible = isAdmin ? attempts : attempts.filter(a => nextRevealedMap?.[a.clue_id] === true);
-  const rows = [...visible].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">{user}</h3>
-        <span className="text-xs text-zinc-400">Intentos: {rows.length}</span>
-      </div>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="text-left text-zinc-400">
-            <tr>
-              <th className="py-1 pr-3">Fecha</th>
-              <th className="py-1 pr-3">Pista #</th>
-              <th className="py-1 pr-3">Respuesta</th>
-              <th className="py-1 pr-3">OK</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const num = clueIndexMap?.[r.clue_id];
-              return (
-                <tr key={i} className="border-t border-zinc-800">
-                  <td className="py-1 pr-3">{fmt(r.created_at)}</td>
-                  <td className="py-1 pr-3">{num ? `#${num}` : "—"}</td>
-                  <td className="py-1 pr-3 whitespace-pre-wrap break-words">{r.answer}</td>
-                  <td className="py-1 pr-3">{r.is_correct ? "✅" : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
   );
 }
