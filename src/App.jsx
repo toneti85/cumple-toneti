@@ -751,7 +751,7 @@ function RSVPBox({ currentName, setCurrentName, onConfirmedChange }) {
     if (bestName && score >= 0.85) {
       // Parecido razonable → pedimos confirmación en UI
       setSuggestion({ name: bestName, score });
-      setStatus(`¿Querías decir "${bestName}"? (parecido ${(score*100).toFixed(0)}%)`);
+      setStatus(`¿Querías decir "${bestName}"? (parecido ${(score * 100).toFixed(0)}%)`);
       return;
     }
 
@@ -1262,46 +1262,46 @@ function LeaderboardSection() {
   }, []);
 
   // 2) Estructuras auxiliares (orden, nº de pista, y "pista anterior a la última desbloqueada")
-const { orderedClues, clueNum, prevClueId, prevClueNumber } = useMemo(() => {
-  const ordered = clues.slice().sort(
-    (a, b) => new Date(a.revealAt) - new Date(b.revealAt)
-  );
-  const num = new Map(); // id -> nº pista (1..N)
-  ordered.forEach((c, i) => num.set(c.id, i + 1));
+  const { orderedClues, clueNum, prevClueId, prevClueNumber } = useMemo(() => {
+    const ordered = clues.slice().sort(
+      (a, b) => new Date(a.revealAt) - new Date(b.revealAt)
+    );
+    const num = new Map(); // id -> nº pista (1..N)
+    ordered.forEach((c, i) => num.set(c.id, i + 1));
 
-  // índice de la última pista ya desbloqueada "a fecha de ahora"
-  let lastOpenIdx = -1;
-  for (let i = 0; i < ordered.length; i++) {
-    if (new Date(now) >= new Date(ordered[i].revealAt)) lastOpenIdx = i;
-  }
+    // índice de la última pista ya desbloqueada "a fecha de ahora"
+    let lastOpenIdx = -1;
+    for (let i = 0; i < ordered.length; i++) {
+      if (new Date(now) >= new Date(ordered[i].revealAt)) lastOpenIdx = i;
+    }
 
-  // "la anterior a la última desbloqueada" es lastOpenIdx - 1
-  const prev =
-    lastOpenIdx >= 1
-      ? ordered[lastOpenIdx - 1]
-      : null;
+    // "la anterior a la última desbloqueada" es lastOpenIdx - 1
+    const prev =
+      lastOpenIdx >= 1
+        ? ordered[lastOpenIdx - 1]
+        : null;
 
-  return {
-    orderedClues: ordered,
-    clueNum: num,
-    prevClueId: prev?.id ?? null,
-    prevClueNumber: prev ? num.get(prev.id) : null,
-  };
-}, [clues, now]);
+    return {
+      orderedClues: ordered,
+      clueNum: num,
+      prevClueId: prev?.id ?? null,
+      prevClueNumber: prev ? num.get(prev.id) : null,
+    };
+  }, [clues, now]);
 
-// 3) DETALLE visible: ahora solo la "pista anterior a la última desbloqueada" (admin: todo)
-const visibleAttempts = useMemo(() => {
-  const base = isAdmin
-    ? allAttempts
-    : allAttempts.filter(a => prevClueId && a.clue_id === prevClueId);
+  // 3) DETALLE visible: ahora solo la "pista anterior a la última desbloqueada" (admin: todo)
+  const visibleAttempts = useMemo(() => {
+    const base = isAdmin
+      ? allAttempts
+      : allAttempts.filter(a => prevClueId && a.clue_id === prevClueId);
 
-  return base
-    .map(a => ({
-      ...a,
-      clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
-    }))
-    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-}, [allAttempts, clueNum, prevClueId, isAdmin]);
+    return base
+      .map(a => ({
+        ...a,
+        clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
+      }))
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }, [allAttempts, clueNum, prevClueId, isAdmin]);
 
 
   // 4) RANKING: siempre con TODOS los intentos (no filtrados)
@@ -1396,17 +1396,21 @@ const visibleAttempts = useMemo(() => {
               <tr>
                 <th className="py-1 pr-3">Usuario</th>
                 <th className="py-1 pr-3">Pista</th>
+                <th className="py-1 pr-3">Respuesta</th> {/* NUEVA */}
                 <th className="py-1 pr-3">Correcta</th>
                 <th className="py-1 pr-3">Fecha</th>
               </tr>
             </thead>
             <tbody>
               {visibleAttempts.length === 0 ? (
-                <tr><td colSpan={4} className="py-2 text-zinc-400">Nada que mostrar aún</td></tr>
+                <tr><td colSpan={5} className="py-2 text-zinc-400">Nada que mostrar aún</td></tr>
               ) : visibleAttempts.map((a, i) => (
                 <tr key={i} className="border-t border-zinc-800">
                   <td className="py-1 pr-3">{a.attendee || "—"}</td>
                   <td className="py-1 pr-3">#{a.clue_number}</td>
+                  <td className="py-1 pr-3 max-w-[28ch] break-words">
+                    {a.answer?.trim() || "—"}
+                  </td> {/* NUEVA CELDA */}
                   <td className="py-1 pr-3">{a.is_correct ? "✅" : "❌"}</td>
                   <td className="py-1 pr-3">{new Date(a.created_at).toLocaleString()}</td>
                 </tr>
@@ -1415,6 +1419,7 @@ const visibleAttempts = useMemo(() => {
           </table>
         </div>
       </div>
+
     </section>
   );
 }
