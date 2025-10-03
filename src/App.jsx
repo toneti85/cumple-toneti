@@ -1261,37 +1261,48 @@ function LeaderboardSection() {
     return () => { active = false; };
   }, []);
 
-  // 2) Estructuras auxiliares (orden y nº de pista)
-  const { clueNum, nextRevealed } = useMemo(() => {
-    const ordered = clues.slice().sort(
-      (a, b) => new Date(a.revealAt) - new Date(b.revealAt)
-    );
-    const num = new Map();      // id -> nº pista (1..N)
-    const nextMap = new Map();  // id -> bool (si la siguiente ya está revelada a fecha de "now")
-    ordered.forEach((c, i) => {
-      num.set(c.id, i + 1);
-      const next = ordered[i + 1];
-      if (!next) nextMap.set(c.id, false);
-      else nextMap.set(c.id, new Date(now) >= new Date(next.revealAt));
-    });
-    return { clueNum: num, nextRevealed: nextMap };
-  }, [clues, now]);
+  // 2) Estructuras auxiliares (orden, nº de pista, y "pista anterior a la última desbloqueada")
+const { orderedClues, clueNum, prevClueId, prevClueNumber } = useMemo(() => {
+  const ordered = clues.slice().sort(
+    (a, b) => new Date(a.revealAt) - new Date(b.revealAt)
+  );
+  const num = new Map(); // id -> nº pista (1..N)
+  ordered.forEach((c, i) => num.set(c.id, i + 1));
 
-  // 3) DETALLE visible: filtra intentos en memoria (no refetch)
-  const visibleAttempts = useMemo(() => {
-    if (isAdmin) {
-      return allAttempts.map(a => ({
-        ...a,
-        clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
-      }));
-    }
-    return allAttempts
-      .filter(a => nextRevealed.get(a.clue_id) === true)
-      .map(a => ({
-        ...a,
-        clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
-      }));
-  }, [allAttempts, clueNum, nextRevealed, isAdmin]);
+  // índice de la última pista ya desbloqueada "a fecha de ahora"
+  let lastOpenIdx = -1;
+  for (let i = 0; i < ordered.length; i++) {
+    if (new Date(now) >= new Date(ordered[i].revealAt)) lastOpenIdx = i;
+  }
+
+  // "la anterior a la última desbloqueada" es lastOpenIdx - 1
+  const prev =
+    lastOpenIdx >= 1
+      ? ordered[lastOpenIdx - 1]
+      : null;
+
+  return {
+    orderedClues: ordered,
+    clueNum: num,
+    prevClueId: prev?.id ?? null,
+    prevClueNumber: prev ? num.get(prev.id) : null,
+  };
+}, [clues, now]);
+
+// 3) DETALLE visible: ahora solo la "pista anterior a la última desbloqueada" (admin: todo)
+const visibleAttempts = useMemo(() => {
+  const base = isAdmin
+    ? allAttempts
+    : allAttempts.filter(a => prevClueId && a.clue_id === prevClueId);
+
+  return base
+    .map(a => ({
+      ...a,
+      clue_number: clueNum.get(a.clue_id) ?? a.clue_id,
+    }))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}, [allAttempts, clueNum, prevClueId, isAdmin]);
+
 
   // 4) RANKING: siempre con TODOS los intentos (no filtrados)
   const table = useMemo(() => {
